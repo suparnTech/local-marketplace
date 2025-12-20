@@ -1,21 +1,46 @@
-// src/theme/colors.ts
-export const lightColors = {
-  background: "#020617", // deep navy
-  surface: "#020617",
-  surfaceSoft: "#0b1220",
-  card: "#020617",
-  primary: "#38bdf8", // sky blue
-  primarySoft: "#0ea5e9",
-  accent: "#a855f7", // violet
-  accentSoft: "#7c3aed",
-  success: "#22c55e",
-  danger: "#ef4444",
-  text: "#e5e7eb",
-  textMuted: "#9ca3af",
-  border: "#1e293b",
-  overlay: "rgba(15,23,42,0.85)",
+// src/theme/colors.ts - Dark Green Gradient Theme (matching reference image)
+export const colors = {
+  // Primary Green Gradients - Deep forest green
+  primary: '#10B981', // Emerald 500
+  primaryDark: '#047857', // Emerald 700
+  primaryLight: '#34D399', // Emerald 400
+
+  // Secondary Lime/Yellow accents
+  secondary: '#84CC16', // Lime 500
+  secondaryDark: '#65A30D', // Lime 600
+  secondaryLight: '#A3E635', // Lime 400
+
+  // Accent Colors
+  accent: '#FBBF24', // Amber 400
+  accentDark: '#F59E0B', // Amber 500
+  accentLight: '#FCD34D', // Amber 300
+
+  // Success, Warning, Error
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  danger: '#DC2626',
+
+  // Dark Backgrounds - Very dark green/black
+  background: '#0A0F0A', // Almost black with green tint
+  backgroundLight: '#0F1410', // Very dark green
+  surface: '#1A2318', // Dark forest green
+  surfaceLight: '#243020', // Lighter dark green
+
+  // Text
+  text: '#FFFFFF', // Pure White
+  textMuted: '#94A3B8', // Slate 400
+  textDark: '#64748B',
+
+  // Borders & Overlays
+  border: 'rgba(16, 185, 129, 0.15)', // Green tinted border
+  borderLight: 'rgba(16, 185, 129, 0.25)',
+  overlay: 'rgba(10, 15, 10, 0.9)',
+
+  // Glassmorphism - Green tinted
+  glass: 'rgba(16, 185, 129, 0.08)',
+  glassLight: 'rgba(16, 185, 129, 0.12)',
+  glassDark: 'rgba(0, 0, 0, 0.4)',
 };
 
-export const darkColors = {
-  ...lightColors,
-};
+export default colors;

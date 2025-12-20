@@ -1,0 +1,244 @@
+// src/routes/orders.ts
+import { Router } from "express";
+import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+
+const router = Router();
+
+
+// POST /orders - Create order
+router.post("/", authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { storeId, items, deliveryAddress, deliveryCity, deliveryPincode, notes } = req.body;
+
+        // Validation
+        if (!storeId || !items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: "Invalid order data" });
+        }
+
+        if (!deliveryAddress) {
+            return res.status(400).json({ message: "Delivery address is required" });
+        }
+
+        // Calculate total price
+        const totalPrice = items.reduce((sum: number, item: any) => {
+            return sum + (item.price * item.quantity);
+        }, 0);
+
+        // Create order
+        const order = await prisma.order.create({
+            data: {
+                userId: req.userId!,
+                storeId,
+                totalPrice,
+                items,
+                deliveryAddress,
+                deliveryCity,
+                deliveryPincode,
+                notes,
+                status: "PENDING",
+            },
+            include: {
+                store: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                    },
+                },
+            },
+        });
+
+        // Create notification for store owner
+        const store = await prisma.store.findUnique({
+            where: { id: storeId },
+        });
+
+        if (store) {
+            await prisma.notification.create({
+                data: {
+                    userId: store.ownerId,
+                    message: `New order received! Order #${order.id.slice(0, 8)}`,
+                    type: "ORDER_UPDATE",
+                    metadata: { orderId: order.id },
+                },
+            });
+        }
+
+        res.status(201).json(order);
+    } catch (error) {
+        console.error("Create order error:", error);
+        res.status(500).json({ message: "Failed to create order" });
+    }
+});
+
+// GET /orders - List user's orders
+router.get("/", authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { status } = req.query;
+
+        const where: any = { userId: req.userId };
+        if (status) where.status = status;
+
+        const orders = await prisma.order.findMany({
+            where,
+            include: {
+                store: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        city: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+
+        res.json(orders);
+    } catch (error) {
+        console.error("Get orders error:", error);
+        res.status(500).json({ message: "Failed to fetch orders" });
+    }
+});
+
+// GET /orders/store/:storeId - List store's orders (store owner)
+router.get("/store/:storeId", authenticate, requireRole("STORE_OWNER", "ADMIN"), async (req: AuthRequest, res) => {
+    try {
+        const { storeId } = req.params;
+        const { status } = req.query;
+
+        // Verify ownership
+        if (req.userRole !== "ADMIN") {
+            const store = await prisma.store.findUnique({
+                where: { id: storeId },
+            });
+
+            if (!store || store.ownerId !== req.userId) {
+                return res.status(403).json({ message: "Not authorized" });
+            }
+        }
+
+        const where: any = { storeId };
+        if (status) where.status = status;
+
+        const orders = await prisma.order.findMany({
+            where,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+
+        res.json(orders);
+    } catch (error) {
+        console.error("Get store orders error:", error);
+        res.status(500).json({ message: "Failed to fetch orders" });
+    }
+});
+
+// GET /orders/:id - Order details
+router.get("/:id", authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params;
+
+        const order = await prisma.order.findUnique({
+            where: { id },
+            include: {
+                store: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        city: true,
+                        phone: true,
+                    },
+                },
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                    },
+                },
+            },
+        });
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        // Verify access
+        const store = await prisma.store.findUnique({
+            where: { id: order.storeId },
+        });
+
+        const isOwner = order.userId === req.userId;
+        const isStoreOwner = store && store.ownerId === req.userId;
+        const isAdmin = req.userRole === "ADMIN";
+
+        if (!isOwner && !isStoreOwner && !isAdmin) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        res.json(order);
+    } catch (error) {
+        console.error("Get order error:", error);
+        res.status(500).json({ message: "Failed to fetch order" });
+    }
+});
+
+// PUT /orders/:id/status - Update order status (store owner)
+router.put("/:id/status", authenticate, requireRole("STORE_OWNER", "ADMIN"), async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const validStatuses = ["PENDING", "CONFIRMED", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ message: "Invalid status" });
+        }
+
+        // Verify ownership
+        const order = await prisma.order.findUnique({
+            where: { id },
+            include: { store: true },
+        });
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        if (req.userRole !== "ADMIN" && order.store.ownerId !== req.userId) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        // Update order
+        const updatedOrder = await prisma.order.update({
+            where: { id },
+            data: { status },
+        });
+
+        // Create notification for customer
+        await prisma.notification.create({
+            data: {
+                userId: order.userId,
+                message: `Your order #${id.slice(0, 8)} status: ${status}`,
+                type: "ORDER_UPDATE",
+                metadata: { orderId: id, status },
+            },
+        });
+
+        res.json(updatedOrder);
+    } catch (error) {
+        console.error("Update order status error:", error);
+        res.status(500).json({ message: "Failed to update order status" });
+    }
+});
+
+export default router;

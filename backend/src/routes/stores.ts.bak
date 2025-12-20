@@ -1,0 +1,263 @@
+// src/routes/stores.ts
+import { Router } from "express";
+import { authenticate, AuthRequest, requireRole } from "../middleware/auth";
+
+const router = Router();
+
+
+// GET /stores - List stores with filters
+router.get("/", async (req, res) => {
+  try {
+    const { city, category, search, lat, lng, radius } = req.query;
+
+    const where: any = {};
+
+    if (city) where.city = city as string;
+    if (category) where.category = category as string;
+    if (search) {
+      where.name = {
+        contains: search as string,
+        mode: "insensitive",
+      };
+    }
+
+    const stores = await prisma.store.findMany({
+      where,
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            products: true,
+            reviews: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Calculate average rating for each store
+    const storesWithRatings = await Promise.all(
+      stores.map(async (store) => {
+        const reviews = await prisma.review.findMany({
+          where: { storeId: store.id },
+          select: { rating: true },
+        });
+
+        const avgRating = reviews.length > 0
+          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+          : 0;
+
+        return {
+          ...store,
+          avgRating: Math.round(avgRating * 10) / 10,
+          reviewCount: reviews.length,
+        };
+      })
+    );
+
+    res.json(storesWithRatings);
+  } catch (error) {
+    console.error("Get stores error:", error);
+    res.status(500).json({ message: "Failed to fetch stores" });
+  }
+});
+
+// GET /stores/:id - Store details
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const store = await prisma.store.findUnique({
+      where: { id },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+        products: {
+          where: { isAvailable: true },
+          orderBy: { name: "asc" },
+        },
+        reviews: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        },
+      },
+    });
+
+    if (!store) {
+      return res.status(404).json({ message: "Store not found" });
+    }
+
+    // Calculate average rating
+    const avgRating = store.reviews.length > 0
+      ? store.reviews.reduce((sum, r) => sum + r.rating, 0) / store.reviews.length
+      : 0;
+
+    res.json({
+      ...store,
+      avgRating: Math.round(avgRating * 10) / 10,
+    });
+  } catch (error) {
+    console.error("Get store error:", error);
+    res.status(500).json({ message: "Failed to fetch store" });
+  }
+});
+
+// POST /stores - Create store (authenticated users)
+router.post("/", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const {
+      name,
+      address,
+      city,
+      pincode,
+      category,
+      description,
+      imageUrl,
+      lat,
+      lng,
+      openHours,
+    } = req.body;
+
+    // Validation
+    if (!name || !address || !city || !pincode || !category) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Update user role to STORE_OWNER if they're creating their first store
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+    });
+
+    if (user && user.role === "CUSTOMER") {
+      await prisma.user.update({
+        where: { id: req.userId },
+        data: { role: "STORE_OWNER" },
+      });
+    }
+
+    const store = await prisma.store.create({
+      data: {
+        name,
+        address,
+        city,
+        pincode,
+        category,
+        description,
+        imageUrl,
+        lat: lat ? parseFloat(lat) : null,
+        lng: lng ? parseFloat(lng) : null,
+        openHours,
+        ownerId: req.userId!,
+      },
+    });
+
+    res.status(201).json(store);
+  } catch (error) {
+    console.error("Create store error:", error);
+    res.status(500).json({ message: "Failed to create store" });
+  }
+});
+
+// PUT /stores/:id - Update store
+router.put("/:id", authenticate, requireRole("STORE_OWNER", "ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      address,
+      city,
+      pincode,
+      category,
+      description,
+      imageUrl,
+      lat,
+      lng,
+      openHours,
+      isActive,
+    } = req.body;
+
+    // Verify ownership
+    const existingStore = await prisma.store.findUnique({
+      where: { id },
+    });
+
+    if (!existingStore) {
+      return res.status(404).json({ message: "Store not found" });
+    }
+
+    if (req.userRole !== "ADMIN" && existingStore.ownerId !== req.userId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const store = await prisma.store.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(address && { address }),
+        ...(city && { city }),
+        ...(pincode && { pincode }),
+        ...(category && { category }),
+        ...(description !== undefined && { description }),
+        ...(imageUrl && { imageUrl }),
+        ...(lat && { lat: parseFloat(lat) }),
+        ...(lng && { lng: parseFloat(lng) }),
+        ...(openHours && { openHours }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+
+    res.json(store);
+  } catch (error) {
+    console.error("Update store error:", error);
+    res.status(500).json({ message: "Failed to update store" });
+  }
+});
+
+// DELETE /stores/:id - Delete store
+router.delete("/:id", authenticate, requireRole("STORE_OWNER", "ADMIN"), async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify ownership
+    const store = await prisma.store.findUnique({
+      where: { id },
+    });
+
+    if (!store) {
+      return res.status(404).json({ message: "Store not found" });
+    }
+
+    if (req.userRole !== "ADMIN" && store.ownerId !== req.userId) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    await prisma.store.delete({
+      where: { id },
+    });
+
+    res.json({ message: "Store deleted successfully" });
+  } catch (error) {
+    console.error("Delete store error:", error);
+    res.status(500).json({ message: "Failed to delete store" });
+  }
+});
+
+export default router;

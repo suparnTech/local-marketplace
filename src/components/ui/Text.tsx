@@ -1,6 +1,6 @@
 import React from "react";
-import { Text as RNText, TextProps, StyleSheet } from "react-native";
-import { useTheme } from "../../theme/useTheme";
+import { Text as RNText, StyleSheet, TextProps } from "react-native";
+import { colors } from "../../theme/colors";
 
 type Props = TextProps & {
   variant?: "heading" | "subheading" | "body" | "small";
@@ -8,16 +8,22 @@ type Props = TextProps & {
 };
 
 export function Text({ variant = "body", muted, style, ...rest }: Props) {
-  const { colors, typography } = useTheme();
 
   const fontSize =
     variant === "heading"
-      ? typography.heading
+      ? 24
       : variant === "subheading"
-      ? typography.subheading
-      : variant === "small"
-      ? typography.small
-      : typography.body;
+        ? 18
+        : variant === "small"
+          ? 12
+          : 14;
+
+  const fontWeight =
+    variant === "heading"
+      ? "bold"
+      : variant === "subheading"
+        ? "600"
+        : "normal";
 
   return (
     <RNText
@@ -26,6 +32,7 @@ export function Text({ variant = "body", muted, style, ...rest }: Props) {
         {
           color: muted ? colors.textMuted : colors.text,
           fontSize,
+          fontWeight: fontWeight as any,
         },
         style,
       ]}

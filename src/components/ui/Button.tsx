@@ -1,19 +1,21 @@
+import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-  TouchableOpacity,
-  Text,
   StyleSheet,
-  TouchableOpacityProps,
+  Text,
+  TouchableOpacity
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../theme/useTheme";
 
-type Props = TouchableOpacityProps & {
+type ButtonProps = {
   title: string;
-  variant?: "primary" | "ghost";
+  onPress?: () => void;
+  variant?: "primary" | "ghost" | "outline";
+  disabled?: boolean;
+  style?: any;
 };
 
-export function Button({ title, variant = "primary", style, ...rest }: Props) {
+export function Button({ title, variant = "primary", style, ...rest }: ButtonProps) {
   const { colors } = useTheme();
 
   if (variant === "ghost") {
@@ -28,15 +30,27 @@ export function Button({ title, variant = "primary", style, ...rest }: Props) {
     );
   }
 
+  if (variant === "outline") {
+    return (
+      <TouchableOpacity
+        style={[styles.base, styles.ghost, style]}
+        activeOpacity={0.7}
+        {...rest}
+      >
+        <Text style={[styles.text, { color: "#fff" }]}>{title}</Text>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity style={[styles.base, style]} activeOpacity={0.8} {...rest}>
       <LinearGradient
-        colors={[colors.primary, colors.accentSoft]}
+        colors={["#8B5CF6", "#06B6D4"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <Text style={[styles.text, { color: "#020617" }]}>{title}</Text>
+        <Text style={[styles.text, { color: "#fff" }]}>{title}</Text>
       </LinearGradient>
     </TouchableOpacity>
   );

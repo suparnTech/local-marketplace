@@ -1,0 +1,170 @@
+// src/routes/reviews.ts
+import { Router } from "express";
+import { authenticate, AuthRequest } from "../middleware/auth";
+
+const router = Router();
+
+
+// POST /reviews - Create review
+router.post("/", authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { storeId, productId, rating, comment } = req.body;
+
+        // Validation
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ message: "Rating must be between 1 and 5" });
+        }
+
+        if (!storeId && !productId) {
+            return res.status(400).json({ message: "Either storeId or productId is required" });
+        }
+
+        const review = await prisma.review.create({
+            data: {
+                userId: req.userId!,
+                storeId: storeId || null,
+                productId: productId || null,
+                rating,
+                comment,
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+        });
+
+        // Create notification for store owner
+        if (storeId) {
+            const store = await prisma.store.findUnique({
+                where: { id: storeId },
+            });
+
+            if (store) {
+                await prisma.notification.create({
+                    data: {
+                        userId: store.ownerId,
+                        message: `New ${rating}-star review on your store`,
+                        type: "REVIEW",
+                        metadata: { reviewId: review.id, storeId },
+                    },
+                });
+            }
+        }
+
+        res.status(201).json(review);
+    } catch (error) {
+        console.error("Create review error:", error);
+        res.status(500).json({ message: "Failed to create review" });
+    }
+});
+
+// GET /reviews - List reviews
+router.get("/", async (req, res) => {
+    try {
+        const { storeId, productId, userId } = req.query;
+
+        const where: any = {};
+        if (storeId) where.storeId = storeId as string;
+        if (productId) where.productId = productId as string;
+        if (userId) where.userId = userId as string;
+
+        const reviews = await prisma.review.findMany({
+            where,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                store: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                product: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+
+        res.json(reviews);
+    } catch (error) {
+        console.error("Get reviews error:", error);
+        res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+});
+
+// PUT /reviews/:id - Update review
+router.put("/:id", authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params;
+        const { rating, comment } = req.body;
+
+        // Verify ownership
+        const existingReview = await prisma.review.findUnique({
+            where: { id },
+        });
+
+        if (!existingReview) {
+            return res.status(404).json({ message: "Review not found" });
+        }
+
+        if (existingReview.userId !== req.userId) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        const review = await prisma.review.update({
+            where: { id },
+            data: {
+                ...(rating && { rating }),
+                ...(comment !== undefined && { comment }),
+            },
+        });
+
+        res.json(review);
+    } catch (error) {
+        console.error("Update review error:", error);
+        res.status(500).json({ message: "Failed to update review" });
+    }
+});
+
+// DELETE /reviews/:id - Delete review
+router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
+    try {
+        const { id } = req.params;
+
+        // Verify ownership
+        const review = await prisma.review.findUnique({
+            where: { id },
+        });
+
+        if (!review) {
+            return res.status(404).json({ message: "Review not found" });
+        }
+
+        if (review.userId !== req.userId && req.userRole !== "ADMIN") {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+        await prisma.review.delete({
+            where: { id },
+        });
+
+        res.json({ message: "Review deleted successfully" });
+    } catch (error) {
+        console.error("Delete review error:", error);
+        res.status(500).json({ message: "Failed to delete review" });
+    }
+});
+
+export default router;
