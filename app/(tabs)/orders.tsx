@@ -1,8 +1,7 @@
-// app/(tabs)/orders.tsx - Premium Orders List Screen
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -19,7 +18,7 @@ import { ImmersiveBackground } from '../../src/components/ui/ImmersiveBackground
 import { KineticCard } from '../../src/components/ui/KineticCard';
 import { SafeView } from '../../src/components/ui/SafeView';
 import { OrderCardSkeleton } from '../../src/components/ui/Skeleton';
-import { api } from '../../src/lib/api';
+import { useOrders } from '../../src/hooks/useOrders';
 import { colors } from '../../src/theme/colors';
 import { gradients } from '../../src/theme/gradients';
 import { borderRadius, spacing } from '../../src/theme/spacing';
@@ -36,32 +35,21 @@ const STATUS_CONFIG: any = {
 };
 
 export default function OrdersScreen() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [filter]);
+  // Use React Query hook
+  const { data: allOrders = [], isLoading: loading, refetch } = useOrders();
 
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      const params = filter ? { status: filter } : {};
-      const response = await api.get('/api/orders', { params });
-      setOrders(response.data);
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  // Filter orders client-side
+  const orders = filter
+    ? allOrders.filter(order => order.status === filter)
+    : allOrders;
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchOrders();
+    await refetch();
+    setRefreshing(false);
   };
 
   const renderOrderCard = ({ item, index }: { item: any; index: number }) => {

@@ -1,8 +1,7 @@
-// app/(tabs)/categories.tsx - Revolutionary Categories Portal
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     Dimensions,
     FlatList,
@@ -23,7 +22,7 @@ import { ImmersiveBackground } from '../../src/components/ui/ImmersiveBackground
 import { KineticCard } from '../../src/components/ui/KineticCard';
 import { SafeView } from '../../src/components/ui/SafeView';
 import { Skeleton } from '../../src/components/ui/Skeleton';
-import { api } from '../../src/lib/api';
+import { useCategories } from '../../src/hooks/useCategories';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 
@@ -42,30 +41,16 @@ interface Category {
 
 export default function CategoriesScreen() {
     const { selectedTown } = useSelector((state: any) => state.location);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
-        fetchCategories();
-    }, []);
+    // Use React Query hook
+    const { data: categories = [], isLoading: loading, refetch } = useCategories();
+    const [refreshing, setRefreshing] = useState(false);
 
-    const fetchCategories = async () => {
-        try {
-            const response = await api.get('/api/categories');
-            setCategories(response.data);
-        } catch (error) {
-            console.error('Failed to fetch categories:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    const handleRefresh = () => {
+    const handleRefresh = async () => {
         setRefreshing(true);
-        fetchCategories();
+        await refetch();
+        setRefreshing(false);
     };
 
     const filteredCategories = categories.filter(cat =>

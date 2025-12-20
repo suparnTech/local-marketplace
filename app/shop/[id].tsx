@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -15,13 +15,8 @@ import {
     View,
 } from 'react-native';
 import Animated, {
-    Extrapolate,
     FadeInDown,
-    FadeInUp,
-    interpolate,
-    useAnimatedScrollHandler,
-    useAnimatedStyle,
-    useSharedValue,
+    FadeInUp
 } from 'react-native-reanimated';
 import { useDispatch, useSelector } from 'react-redux';
 import { ProductDetailModal } from '../../src/components/ProductDetailModal';
@@ -31,7 +26,7 @@ import { ImmersiveBackground } from '../../src/components/ui/ImmersiveBackground
 import { KineticCard } from '../../src/components/ui/KineticCard';
 import { SafeView } from '../../src/components/ui/SafeView';
 import { Skeleton } from '../../src/components/ui/Skeleton';
-import { api } from '../../src/lib/api';
+import { useShopDetail, useShopProducts } from '../../src/hooks/useShopDetail';
 import { addToCart } from '../../src/store/slices/cartSlice';
 import { colors } from '../../src/theme/colors';
 import { gradients } from '../../src/theme/gradients';
@@ -68,49 +63,23 @@ interface Product {
 
 export default function ShopDetailScreen() {
     const { id } = useLocalSearchParams();
+    const shopId = typeof id === 'string' ? id : undefined;
     const dispatch = useDispatch();
     const cartItems = useSelector((state: any) => state.cart.items);
     const cartCount = cartItems.length;
 
-    const scrollY = useSharedValue(0);
-    const onScroll = useAnimatedScrollHandler({
-        onScroll: (event) => {
-            scrollY.value = event.contentOffset.y;
-        },
-    });
+    // Use React Query hooks
+    const { data: shop, isLoading: loadingShop, refetch: refetchShop } = useShopDetail(shopId);
+    const { data: products = [], isLoading: loadingProducts, refetch: refetchProducts } = useShopProducts(shopId);
 
-    const [shop, setShop] = useState<Shop | null>(null);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
+    const loading = loadingShop || loadingProducts;
     const [refreshing, setRefreshing] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
 
-    useEffect(() => {
-        fetchShopDetails();
-    }, [id]);
-
-    const fetchShopDetails = async () => {
-        try {
-            setLoading(true);
-
-            const [shopRes, productsRes] = await Promise.all([
-                api.get(`/api/shops/${id}`),
-                api.get(`/api/shops/${id}/products`)
-            ]);
-
-            setShop(shopRes.data);
-            setProducts(productsRes.data);
-        } catch (error) {
-            console.error('Failed to fetch shop details:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchShopDetails();
+        await Promise.all([refetchShop(), refetchProducts()]);
         setRefreshing(false);
     };
 
@@ -218,18 +187,7 @@ export default function ShopDetailScreen() {
         </View>
     );
 
-    const headerStyle = useAnimatedStyle(() => {
-        const opacity = interpolate(scrollY.value, [0, HERO_HEIGHT - HEADER_HEIGHT], [0, 1], Extrapolate.CLAMP);
-        return { opacity };
-    });
 
-    const heroImageStyle = useAnimatedStyle(() => {
-        const scale = interpolate(scrollY.value, [-HERO_HEIGHT, 0], [1.5, 1], Extrapolate.CLAMP);
-        const translateY = interpolate(scrollY.value, [0, HERO_HEIGHT], [0, HERO_HEIGHT * 0.4], Extrapolate.CLAMP);
-        return {
-            transform: [{ scale }, { translateY }],
-        };
-    });
 
     if (loading) {
         return (
@@ -276,7 +234,7 @@ export default function ShopDetailScreen() {
             <ImmersiveBackground />
 
             {/* Parallax Hero Background */}
-            <Animated.View style={[styles.heroBackground, heroImageStyle]}>
+            <View style={styles.heroBackground}>
                 {shop.logo_url ? (
                     <Image source={{ uri: shop.logo_url }} style={styles.heroImage} resizeMode="cover" />
                 ) : (
@@ -291,7 +249,7 @@ export default function ShopDetailScreen() {
                     colors={['transparent', 'rgba(10,15,10,0.5)', '#0A0F0A']}
                     style={styles.heroOverlay}
                 />
-            </Animated.View>
+            </View>
 
             {/* Dynamic Header */}
             <View style={styles.headerPortal}>
@@ -300,14 +258,11 @@ export default function ShopDetailScreen() {
                     subtitle={shop.category_name}
                     showBackButton
                     intensity={20}
-                    style={headerStyle}
                 />
             </View>
 
-            <Animated.ScrollView
+            <ScrollView
                 style={styles.container}
-                onScroll={onScroll}
-                scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -383,7 +338,7 @@ export default function ShopDetailScreen() {
                     </View>
                     <View style={styles.bottomSpacer} />
                 </View>
-            </Animated.ScrollView>
+            </ScrollView>
 
             {/* Floating Cart Button */}
             {cartCount > 0 && (

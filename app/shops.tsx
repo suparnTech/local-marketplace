@@ -1,4 +1,4 @@
-// app/shops.tsx - Enhanced Shop List Screen with Category Filter
+// app/shops.tsx - Shops List Screen
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -21,7 +21,8 @@ import { ImmersiveBackground } from '../src/components/ui/ImmersiveBackground';
 import { KineticCard } from '../src/components/ui/KineticCard';
 import { SafeView } from '../src/components/ui/SafeView';
 import { Skeleton } from '../src/components/ui/Skeleton';
-import { api } from '../src/lib/api';
+import { useCategories } from '../src/hooks/useCategories';
+import { useShops } from '../src/hooks/useShops';
 import { colors } from '../src/theme/colors';
 import { gradients } from '../src/theme/gradients';
 import { borderRadius, spacing } from '../src/theme/spacing';
@@ -48,23 +49,25 @@ interface Category {
 }
 
 export default function ShopsScreen() {
-    const params = useLocalSearchParams();
-    const { category: categoryParam, town: townParam, search: searchParam } = params;
+    const { category: categoryParam, town: townParam, search: searchParam } = useLocalSearchParams();
     const { selectedTown } = useSelector((state: any) => state.location);
 
-    const [shops, setShops] = useState<Shop[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
     const townId = townParam || selectedTown?.id;
     const townName = selectedTown?.name || 'your area';
 
-    useEffect(() => {
-        fetchCategories();
-    }, []);
+    // Use React Query hooks
+    const { data: categories = [], isLoading: loadingCategories } = useCategories();
+    const { data: shops = [], isLoading: loadingShops, refetch: refetchShops } = useShops({
+        categoryId: selectedCategory?.id,
+        townId: townId as string,
+        search: typeof searchParam === 'string' ? searchParam : undefined,
+    });
+
+    const loading = loadingCategories || loadingShops;
 
     useEffect(() => {
         if (categoryParam && categories.length > 0) {
@@ -73,43 +76,9 @@ export default function ShopsScreen() {
         }
     }, [categoryParam, categories]);
 
-    useEffect(() => {
-        fetchShops();
-    }, [selectedCategory, townId, searchParam]);
-
-    const fetchCategories = async () => {
-        try {
-            const response = await api.get('/api/categories');
-            setCategories(response.data);
-        } catch (error) {
-            console.error('Failed to fetch categories:', error);
-        }
-    };
-
-    const fetchShops = async () => {
-        try {
-            setLoading(true);
-
-            const response = await api.get('/api/shops', {
-                params: {
-                    town_id: townId,
-                    category_id: selectedCategory?.id,
-                    search: searchParam,
-                    sort: 'rating',
-                },
-            });
-
-            setShops(response.data);
-        } catch (error) {
-            console.error('Failed to fetch shops:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchShops();
+        await refetchShops();
         setRefreshing(false);
     };
 
@@ -119,7 +88,7 @@ export default function ShopsScreen() {
     };
 
     const renderShop = ({ item, index }: { item: Shop; index: number }) => (
-        <Animated.View entering={FadeInDown.delay(index * 100).springify()}>
+        <Animated.View key={item.id} entering={FadeInDown.delay(index * 100).springify()}>
             <KineticCard cardWidth={CARD_WIDTH} style={styles.kineticWrapper}>
                 <TouchableOpacity
                     onPress={() => router.push(`/shop/${item.id}`)}
@@ -219,7 +188,7 @@ export default function ShopsScreen() {
             <View style={styles.container}>
                 <GlassHeader
                     title="Discovery"
-                    subtitle={`Premium curation in ${townName}`}
+                    subtitle={`Premium curation in ${townName} `}
                     showBackButton
                     rightElement={
                         <TouchableOpacity
@@ -327,7 +296,7 @@ export default function ShopsScreen() {
                                     ? `Our ${selectedCategory.name.toLowerCase()} curation hasn't reached ${townName} yet.`
                                     : `No premium spaces available in ${townName} at the moment.`
                                 }
-                            </Text>
+                            </Text >
                             {selectedCategory && (
                                 <TouchableOpacity
                                     style={styles.clearFilterButton}
@@ -338,12 +307,12 @@ export default function ShopsScreen() {
                                     </GlassCard>
                                 </TouchableOpacity>
                             )}
-                        </Animated.View>
+                        </Animated.View >
                     )}
                     <View style={styles.bottomSpacer} />
-                </ScrollView>
-            </View>
-        </SafeView>
+                </ScrollView >
+            </View >
+        </SafeView >
     );
 }
 

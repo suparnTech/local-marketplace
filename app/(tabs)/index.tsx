@@ -1,8 +1,7 @@
-// app/(tabs)/index.tsx - Revolutionary Home Screen
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -25,7 +24,8 @@ import { ImmersiveBackground } from '../../src/components/ui/ImmersiveBackground
 import { KineticCard } from '../../src/components/ui/KineticCard';
 import { SafeView } from '../../src/components/ui/SafeView';
 import { Skeleton } from '../../src/components/ui/Skeleton';
-import { api } from '../../src/lib/api';
+import { useCategories } from '../../src/hooks/useCategories';
+import { useShops } from '../../src/hooks/useShops';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 
@@ -67,45 +67,19 @@ const quickActions: QuickAction[] = [
 
 export default function HomeScreen() {
   const { selectedTown } = useSelector((state: any) => state.location);
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [shops, setShops] = useState<Shop[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-  const [loadingShops, setLoadingShops] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedTown]);
+  // Use React Query hooks
+  const { data: categories = [], isLoading: loadingCategories, refetch: refetchCategories } = useCategories();
+  const { data: shops = [], isLoading: loadingShops, refetch: refetchShops } = useShops({
+    townId: selectedTown?.id
+  });
 
-  const fetchData = async () => {
-    try {
-      setLoadingCategories(true);
-      setLoadingShops(true);
-
-      const promises = [
-        api.get('/api/categories'),
-        selectedTown ? api.get('/api/shops', {
-          params: { town_id: selectedTown.id, sort: 'rating' },
-        }) : Promise.resolve({ data: [] })
-      ];
-
-      const [categoriesRes, shopsRes] = await Promise.all(promises);
-
-      setCategories(categoriesRes.data);
-      setShops(shopsRes.data);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-    } finally {
-      setLoadingCategories(false);
-      setLoadingShops(false);
-    }
-  };
+  const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchData();
+    await Promise.all([refetchCategories(), refetchShops()]);
     setRefreshing(false);
   };
 

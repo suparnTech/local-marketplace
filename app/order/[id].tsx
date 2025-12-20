@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
     Alert,
     Dimensions,
@@ -12,22 +12,14 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import Animated, {
-    Extrapolate,
-    FadeInDown,
-    FadeInUp,
-    interpolate,
-    useAnimatedScrollHandler,
-    useAnimatedStyle,
-    useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { GlassHeader } from '../../src/components/ui/GlassHeader';
 import { ImmersiveBackground } from '../../src/components/ui/ImmersiveBackground';
 import { KineticCard } from '../../src/components/ui/KineticCard';
 import { SafeView } from '../../src/components/ui/SafeView';
 import { Skeleton } from '../../src/components/ui/Skeleton';
-import { api } from '../../src/lib/api';
+import { useCancelOrder, useOrder } from '../../src/hooks/useOrders';
 import { colors } from '../../src/theme/colors';
 import { gradients } from '../../src/theme/gradients';
 import { spacing } from '../../src/theme/spacing';
@@ -46,35 +38,15 @@ const STATUS_TIMELINE = [
 
 export default function OrderDetailScreen() {
     const { id } = useLocalSearchParams();
-    const [order, setOrder] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const orderId = typeof id === 'string' ? id : undefined;
 
-    const scrollY = useSharedValue(0);
-    const onScroll = useAnimatedScrollHandler({
-        onScroll: (event) => {
-            scrollY.value = event.contentOffset.y;
-        },
-    });
-
-    useEffect(() => {
-        fetchOrderDetails();
-    }, [id]);
-
-    const fetchOrderDetails = async () => {
-        try {
-            setLoading(true);
-            const response = await api.get(`/api/orders/${id}`);
-            setOrder(response.data);
-        } catch (error) {
-            console.error('Failed to fetch order:', error);
-            Alert.alert('Error', 'Failed to load order details');
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Use React Query hooks
+    const { data: order, isLoading: loading, refetch } = useOrder(orderId);
+    const cancelOrderMutation = useCancelOrder();
 
     const handleCancelOrder = () => {
+        if (!orderId) return;
+
         Alert.alert(
             'Cancel Order',
             'Are you sure you want to cancel this order?',
@@ -83,25 +55,20 @@ export default function OrderDetailScreen() {
                 {
                     text: 'Yes, Cancel',
                     style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await api.put(`/api/orders/${id}/cancel`);
-                            Alert.alert('Success', 'Order cancelled successfully');
-                            fetchOrderDetails();
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to cancel order');
-                        }
+                    onPress: () => {
+                        cancelOrderMutation.mutate(orderId, {
+                            onSuccess: () => {
+                                Alert.alert('Success', 'Order cancelled successfully');
+                            },
+                            onError: () => {
+                                Alert.alert('Error', 'Failed to cancel order');
+                            },
+                        });
                     },
                 },
             ]
         );
     };
-
-    const headerStyle = useAnimatedStyle(() => {
-        const opacity = interpolate(scrollY.value, [0, 40], [0, 1], Extrapolate.CLAMP);
-        const translateY = interpolate(scrollY.value, [0, 40], [-10, 0], Extrapolate.CLAMP);
-        return { opacity, transform: [{ translateY }] };
-    });
 
     if (loading) {
         return (
@@ -155,14 +122,11 @@ export default function OrderDetailScreen() {
                     subtitle={orderDate}
                     showBackButton
                     intensity={20}
-                    style={headerStyle}
                 />
             </View>
 
-            <Animated.ScrollView
+            <ScrollView
                 style={styles.container}
-                onScroll={onScroll}
-                scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
@@ -323,7 +287,7 @@ export default function OrderDetailScreen() {
                 )}
 
                 <View style={{ height: 120 }} />
-            </Animated.ScrollView>
+            </ScrollView>
         </SafeView>
     );
 }
