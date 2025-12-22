@@ -51,15 +51,17 @@ router.get('/', async (req, res) => {
         }
 
         // Sorting
+        let orderBy = 's.is_featured DESC';
         if (sort === 'rating') {
-            query += ' ORDER BY s.rating DESC, s.total_reviews DESC';
+            orderBy += ', s.rating DESC, s.total_reviews DESC';
         } else if (sort === 'orders') {
-            query += ' ORDER BY s.total_orders DESC';
+            orderBy += ', s.total_orders DESC';
         } else if (sort === 'name') {
-            query += ' ORDER BY s.name ASC';
+            orderBy += ', s.name ASC';
         } else {
-            query += ' ORDER BY s.created_at DESC';
+            orderBy += ', s.created_at DESC';
         }
+        query += ` ORDER BY ${orderBy}`;
 
         const result = await pool.query(query, params);
         res.json(result.rows);
@@ -144,6 +146,25 @@ router.get('/:id/products', async (req, res) => {
     } catch (error: any) {
         console.error('Get shop products error:', error);
         res.status(500).json({ error: 'Failed to fetch products' });
+    }
+});
+
+// GET /api/shops/:id/coupons - Get active coupons for a shop
+router.get('/:id/coupons', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT id, code, discount_type, discount_value, min_order_amount, valid_until
+            FROM coupons
+            WHERE shop_id = $1 
+            AND is_active = true 
+            AND (valid_until IS NULL OR valid_until > NOW())
+            ORDER BY created_at DESC
+        `, [id]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Get shop coupons error:', error);
+        res.status(500).json({ error: 'Failed to fetch coupons' });
     }
 });
 

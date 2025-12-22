@@ -78,10 +78,15 @@ export default function WelcomeScreen() {
             await new Promise(resolve => setTimeout(resolve, 2000));
 
             // Route based on role
-            if (user?.role === 'STORE_OWNER') {
-                router.replace('/store-owner/dashboard');
-            } else if (user?.role === 'ADMIN') {
-                router.replace('/admin/dashboard');
+            if (user?.role === 'ADMIN') {
+                router.replace('/admin/(tabs)/pending');
+            } else if (user?.role === 'STORE_OWNER') {
+                // Check if KYC is approved
+                if (!user.is_approved) {
+                    router.replace('/shop-owner/pending-approval');
+                } else {
+                    router.replace('/shop-owner/(tabs)');
+                }
             } else {
                 // Customer - ALWAYS go to home
                 // Home screen will handle location selection if needed
@@ -282,12 +287,12 @@ export default function WelcomeScreen() {
                 >
                     <GradientButton
                         title="Get Started"
-                        onPress={() => router.push('/auth/register')}
+                        onPress={() => router.push('/auth/role-selection')}
                     />
 
                     <TouchableOpacity
                         style={styles.loginButton}
-                        onPress={() => router.push('/auth/login')}
+                        onPress={() => router.push('/auth/role-selection')}
                     >
                         <Text style={styles.loginText}>I already have an account</Text>
                     </TouchableOpacity>

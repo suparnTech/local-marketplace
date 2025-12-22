@@ -1,11 +1,11 @@
 // app/shops.tsx - Shops List Screen
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
-    Image,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -38,6 +38,9 @@ interface Shop {
     rating: number;
     category_name: string;
     address_line1: string;
+    is_open: boolean;
+    delivery_radius_km: number;
+    min_order_amount: number;
 }
 
 interface Category {
@@ -101,7 +104,8 @@ export default function ShopsScreen() {
                                 <Image
                                     source={{ uri: item.logo_url }}
                                     style={styles.coverImage}
-                                    resizeMode="cover"
+                                    contentFit="cover"
+                                    transition={500}
                                 />
                             ) : (
                                 <LinearGradient
@@ -116,9 +120,19 @@ export default function ShopsScreen() {
 
                             {/* Status Badge */}
                             <View style={styles.statusBadge}>
-                                <GlassCard style={styles.statusGlass} intensity={40}>
-                                    <View style={styles.statusDot} />
-                                    <Text style={styles.statusText}>Live Now</Text>
+                                <GlassCard
+                                    style={[
+                                        styles.statusGlass,
+                                        { backgroundColor: item.is_open ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)' },
+                                        { borderColor: item.is_open ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)' }
+                                    ]}
+                                    intensity={40}
+                                >
+                                    <View style={[
+                                        styles.statusDot,
+                                        { backgroundColor: item.is_open ? '#10B981' : '#EF4444' }
+                                    ]} />
+                                    <Text style={styles.statusText}>{item.is_open ? 'Live Now' : 'Closed'}</Text>
                                 </GlassCard>
                             </View>
 
@@ -130,7 +144,7 @@ export default function ShopsScreen() {
                             <View style={styles.floatingTag}>
                                 <Ionicons name="star" size={12} color={colors.accent} />
                                 <Text style={styles.ratingTextSmall}>
-                                    {item.rating ? Number(item.rating).toFixed(1) : '4.5'}
+                                    {item.rating ? Number(item.rating).toFixed(1) : '0.0'}
                                 </Text>
                             </View>
                         </View>
@@ -151,9 +165,11 @@ export default function ShopsScreen() {
                             <View style={styles.metaRow}>
                                 <View style={styles.locationContainer}>
                                     <View style={styles.iconGlowSmall}>
-                                        <Ionicons name="location" size={12} color={colors.primary} />
+                                        <Ionicons name="bicycle" size={12} color={colors.primary} />
                                     </View>
-                                    <Text style={styles.distanceText}>nearby you</Text>
+                                    <Text style={styles.distanceText}>
+                                        {item.delivery_radius_km}km • Min ₹{item.min_order_amount}
+                                    </Text>
                                 </View>
 
                                 <View style={styles.actionPortal}>

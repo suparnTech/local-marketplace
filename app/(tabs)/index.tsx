@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Dimensions,
   FlatList,
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -49,6 +49,10 @@ interface Shop {
   rating: number;
   category_name: string;
   town_name: string;
+  is_open: boolean;
+  delivery_radius_km: number;
+  min_order_amount: number;
+  is_featured: boolean;
 }
 
 interface QuickAction {
@@ -109,6 +113,33 @@ export default function HomeScreen() {
     </Animated.View>
   );
 
+  const renderFeaturedShop = ({ item }: { item: Shop }) => (
+    <TouchableOpacity
+      style={styles.featuredCard}
+      onPress={() => router.push(`/shop/${item.id}`)}
+    >
+      <GlassCard style={styles.featuredGlass} intensity={40}>
+        <Image
+          source={{ uri: item.logo_url || 'https://via.placeholder.com/150' }}
+          style={styles.featuredImage}
+          contentFit="cover"
+          transition={500}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.featuredOverlay}
+        >
+          <View style={styles.featuredBadge}>
+            <Ionicons name="star" size={10} color="#FFD700" />
+            <Text style={styles.featuredBadgeText}>FEATURED</Text>
+          </View>
+          <Text style={styles.featuredName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.featuredCategory}>{item.category_name}</Text>
+        </LinearGradient>
+      </GlassCard>
+    </TouchableOpacity>
+  );
+
   const renderCategory = ({ item, index }: { item: Category; index: number }) => (
     <KineticCard
       cardWidth={CARD_WIDTH}
@@ -133,22 +164,38 @@ export default function HomeScreen() {
     <KineticCard
       cardWidth={CARD_WIDTH}
       onPress={() => router.push(`/shop/${item.id}`)}
-      style={styles.shopCardWrapper}
+      style={[styles.shopCardWrapper, !item.is_open && { opacity: 0.7 }] as any}
       key={item.id}
     >
-      <GlassCard style={styles.shopContent} intensity={15}>
+      <GlassCard style={styles.shopContent} intensity={item.is_open ? 15 : 10}>
         <View style={styles.shopImageContainer}>
           {item.logo_url ? (
-            <Image source={{ uri: item.logo_url }} style={styles.shopImage} />
+            <Image
+              source={{ uri: item.logo_url }}
+              style={[styles.shopImage, !item.is_open && styles.grayscale]}
+              contentFit="cover"
+              transition={500}
+            />
           ) : (
             <LinearGradient
               colors={[colors.primary + '20', colors.primaryDark + '20']}
               style={styles.shopImagePlaceholder}
             >
-              <Ionicons name="storefront" size={40} color={colors.primary} />
+              <Ionicons name="storefront" size={40} color={item.is_open ? colors.primary : colors.textMuted} />
             </LinearGradient>
           )}
+
+          {/* Status Badge */}
+          <View style={[
+            styles.statusBadgeOverlay,
+            { backgroundColor: item.is_open ? colors.success + 'CC' : colors.error + 'CC' }
+          ]}>
+            <Text style={styles.statusBadgeText}>
+              {item.is_open ? 'OPEN' : 'CLOSED'}
+            </Text>
+          </View>
         </View>
+
         <View style={styles.shopInfo}>
           <Text style={styles.shopName} numberOfLines={1}>{item.name}</Text>
           <View style={styles.shopMeta}>
@@ -159,6 +206,13 @@ export default function HomeScreen() {
               </Text>
             </View>
             <Text style={styles.shopCategory} numberOfLines={1}>• {item.category_name}</Text>
+          </View>
+
+          <View style={styles.operationalMeta}>
+            <Ionicons name="bicycle" size={10} color={colors.primary} />
+            <Text style={styles.operationalText}>
+              {item.delivery_radius_km}km • Min ₹{item.min_order_amount}
+            </Text>
           </View>
         </View>
       </GlassCard>
@@ -226,16 +280,39 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* Quick Actions Portal */}
-        <View style={styles.quickActionsSection}>
-          <FlatList
-            data={quickActions}
-            renderItem={renderQuickAction}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickActionsList}
-          />
-        </View>
+        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.actionSectionOuter}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionList}>
+            {quickActions.map((action, index) => (
+              <TouchableOpacity key={action.id} style={styles.quickActionItem} onPress={() => router.push(action.route as any)}>
+                <GlassCard style={styles.actionGlass} intensity={20}>
+                  <Ionicons name={action.icon} size={24} color={colors.primary} />
+                  <Text style={styles.actionLabel}>{action.label}</Text>
+                </GlassCard>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
+
+        {/* Featured Stores Discovery */}
+        {shops.some(s => s.is_featured) && (
+          <View style={styles.featuredSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Featured Stores</Text>
+              <Ionicons name="sparkles" size={18} color="#FFD700" />
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.featuredList}
+            >
+              {shops.filter(s => s.is_featured).map((shop) => (
+                <React.Fragment key={shop.id}>
+                  {renderFeaturedShop({ item: shop })}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Categories Section */}
         <View style={styles.section}>
@@ -548,6 +625,33 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.4)',
     fontWeight: '500',
   },
+  operationalMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  operationalText: {
+    fontSize: 10,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  statusBadgeOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  grayscale: {
+    opacity: 0.6,
+  },
   emptyCard: {
     padding: spacing.xl * 2,
     alignItems: 'center',
@@ -564,5 +668,86 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
     lineHeight: 18,
+  },
+  featuredSection: {
+    marginTop: spacing.xl,
+  },
+  featuredList: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  featuredCard: {
+    width: 200,
+    height: 250,
+    marginRight: spacing.md,
+  },
+  featuredGlass: {
+    padding: 0,
+    overflow: 'hidden',
+    height: '100%',
+  },
+  featuredImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  featuredOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.md,
+    height: '60%',
+    justifyContent: 'flex-end',
+  },
+  featuredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+    gap: 4,
+  },
+  featuredBadgeText: {
+    color: '#FFD700',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  featuredName: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  featuredCategory: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  actionSectionOuter: {
+    marginTop: spacing.md,
+  },
+  actionList: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+  },
+  quickActionItem: {
+    width: 90,
+    alignItems: 'center',
+  },
+  actionGlass: {
+    width: '100%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  actionLabel: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 8,
   },
 });

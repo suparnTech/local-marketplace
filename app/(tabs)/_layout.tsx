@@ -13,6 +13,8 @@ import Animated, {
   useSharedValue,
   withSpring
 } from 'react-native-reanimated';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { useNotifications } from '../../src/hooks/useNotifications';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 
@@ -152,6 +154,11 @@ function TabIcon({ name, isFocused }: { name: any; isFocused: boolean }) {
 }
 
 export default function TabLayout() {
+  const { user } = useAuth();
+
+  // Activate real-time notifications for the customer
+  useNotifications(user?.id);
+
   return (
     <Tabs
       tabBar={(props) => <KineticTabBar {...props} />}

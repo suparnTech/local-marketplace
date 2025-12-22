@@ -3,11 +3,11 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
     Dimensions,
-    Image,
     Modal,
     ScrollView,
     StyleSheet,
@@ -18,6 +18,7 @@ import {
 import Animated, {
     FadeInUp,
     interpolate,
+    SharedValue,
     useAnimatedStyle,
     useSharedValue,
     withSpring,
@@ -42,6 +43,27 @@ interface ProductDetailModalProps {
     onClose: () => void;
 }
 
+const PaginationDot = ({ index, position }: { index: number; position: SharedValue<number> }) => {
+    const dotStyle = useAnimatedStyle(() => {
+        const distance = Math.abs(position.value - index);
+        const scale = interpolate(distance, [0, 1, 2], [1.2, 0.8, 0.8]);
+        const opacity = interpolate(distance, [0, 1, 2], [1, 0.4, 0.4]);
+        const width = interpolate(distance, [0, 1], [24, 8], 'clamp');
+
+        return {
+            width,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: colors.primary,
+            marginHorizontal: 4,
+            opacity,
+            transform: [{ scale }],
+        };
+    });
+
+    return <Animated.View style={dotStyle} />;
+};
+
 export function ProductDetailModal({ visible, product, onClose }: ProductDetailModalProps) {
     const dispatch = useDispatch();
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -52,6 +74,7 @@ export function ProductDetailModal({ visible, product, onClose }: ProductDetailM
     const modalOpacity = useSharedValue(0);
     const imageTiltX = useSharedValue(0);
     const imageTiltY = useSharedValue(0);
+    const indicatorPosition = useSharedValue(0);
 
     React.useEffect(() => {
         if (visible) {
@@ -138,6 +161,10 @@ export function ProductDetailModal({ visible, product, onClose }: ProductDetailM
                                     horizontal
                                     pagingEnabled
                                     showsHorizontalScrollIndicator={false}
+                                    onScroll={(e) => {
+                                        indicatorPosition.value = e.nativeEvent.contentOffset.x / MODAL_WIDTH;
+                                    }}
+                                    scrollEventThrottle={16}
                                     onMomentumScrollEnd={(e) => {
                                         const index = Math.round(e.nativeEvent.contentOffset.x / MODAL_WIDTH);
                                         setCurrentImageIndex(index);
@@ -148,15 +175,23 @@ export function ProductDetailModal({ visible, product, onClose }: ProductDetailM
                                             <Image
                                                 source={{ uri: image }}
                                                 style={styles.productImage}
-                                                resizeMode="cover"
+                                                contentFit="cover"
+                                                transition={500}
                                             />
                                             <LinearGradient
-                                                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                                                colors={['transparent', 'rgba(0,0,0,0.4)']}
                                                 style={styles.imageOverlay}
                                             />
                                         </View>
                                     ))}
                                 </ScrollView>
+
+                                {/* Liquid Indicator */}
+                                <View style={styles.indicatorContainer}>
+                                    {images.map((_, i) => (
+                                        <PaginationDot key={i} index={i} position={indicatorPosition} />
+                                    ))}
+                                </View>
                             </Animated.View>
 
                             {/* Floating Indicators */}
@@ -457,5 +492,16 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    indicatorContainer: {
+        flexDirection: 'row',
+        position: 'absolute',
+        bottom: 24,
+        alignSelf: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
     },
 });

@@ -1,8 +1,8 @@
 // src/routes/auth.ts
 import bcrypt from "bcryptjs";
-import express from "express";
+import express, { Response } from "express";
 import { pool } from "../lib/db";
-import { generateToken } from "../middleware/auth";
+import { authenticate, AuthRequest, generateToken } from "../middleware/auth";
 
 const router = express.Router();
 
@@ -77,7 +77,6 @@ router.post("/login", async (req, res) => {
     }
 });
 
-import { authenticate, AuthRequest } from "../middleware/auth";
 
 // Get current user
 router.get("/me", authenticate, async (req: AuthRequest, res) => {
@@ -119,6 +118,30 @@ router.put("/profile", authenticate, async (req: AuthRequest, res) => {
     } catch (error: any) {
         console.error("Update profile error:", error);
         res.status(500).json({ error: "Failed to update profile" });
+    }
+});
+
+/**
+ * POST /api/auth/push-token
+ * Update user's push notification token
+ */
+router.post('/push-token', authenticate, async (req: AuthRequest, res: Response) => {
+    const userId = req.userId;
+    const { token } = req.body;
+
+    if (!token) {
+        return res.status(400).json({ error: 'Token is required' });
+    }
+
+    try {
+        await pool.query(
+            'UPDATE users SET push_token = $1, updated_at = NOW() WHERE id = $2',
+            [token, userId]
+        );
+        res.json({ message: 'Push token updated successfully' });
+    } catch (error) {
+        console.error('Update push token error:', error);
+        res.status(500).json({ error: 'Failed to update push token' });
     }
 });
 

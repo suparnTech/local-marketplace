@@ -4,12 +4,24 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Provider } from "react-redux";
 import { AuthProvider } from "../src/contexts/AuthContext";
-import { queryClient } from "../src/lib/queryClient";
+import { persistQueryClient, queryClient, restoreQueryClient } from "../src/lib/queryClient";
 import { store } from "../src/store";
 
 export default function RootLayout() {
   // Ensure queryClient is stable across renders
   const client = React.useMemo(() => queryClient, []);
+
+  React.useEffect(() => {
+    // Restore cache on mount
+    restoreQueryClient(client);
+
+    // Persist cache every 30 seconds if there are changes
+    const persistInterval = setInterval(() => {
+      persistQueryClient(client);
+    }, 30000);
+
+    return () => clearInterval(persistInterval);
+  }, [client]);
 
   return (
     <Provider store={store}>

@@ -7,16 +7,20 @@ interface Order {
     status: string;
     total_amount: number;
     created_at: string;
-    items: any[];
-    delivery_address: {
-        name: string;
-        address_line1: string;
-        address_line2?: string;
-        city: string;
-        state: string;
-        pincode: string;
-        phone: string;
-    };
+    items?: any[];
+    // Joined address properties
+    name: string;
+    phone: string;
+    address_line1: string;
+    address_line2?: string;
+    city: string;
+    state: string;
+    pincode: string;
+    // Joined shop properties
+    shop_name: string;
+    shop_logo?: string;
+    shop_phone?: string;
+    // Billing info
     delivery_fee?: number;
     tax_amount?: number;
     discount_amount?: number;

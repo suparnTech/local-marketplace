@@ -1,8 +1,8 @@
 // app/addresses.tsx - Address List Screen
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback } from 'react';
+import { router } from 'expo-router';
+import React from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -13,39 +13,20 @@ import {
     View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { GlassCard } from '../src/components/ui/GlassCard';
 import { GlassHeader } from '../src/components/ui/GlassHeader';
 import { SafeView } from '../src/components/ui/SafeView';
+import { useAddresses } from '../src/hooks/useAddresses';
 import { api } from '../src/lib/api';
-import { removeAddress as removeAddressAction, selectAddress, setAddresses, setLoading } from '../src/store/slices/addressSlice';
+import { removeAddress as removeAddressAction, selectAddress } from '../src/store/slices/addressSlice';
 import { colors } from '../src/theme/colors';
 import { gradients } from '../src/theme/gradients';
 import { borderRadius, spacing } from '../src/theme/spacing';
 
 export default function AddressesScreen() {
     const dispatch = useDispatch();
-    const addresses = useSelector((state: any) => state.address.addresses);
-    const loading = useSelector((state: any) => state.address.loading);
-
-    // Fetch addresses when screen comes into focus
-    useFocusEffect(
-        useCallback(() => {
-            fetchAddresses();
-        }, [])
-    );
-
-    const fetchAddresses = async () => {
-        try {
-            dispatch(setLoading(true));
-            const response = await api.get('/api/addresses');
-            dispatch(setAddresses(response.data));
-        } catch (error) {
-            console.error('Failed to fetch addresses:', error);
-        } finally {
-            dispatch(setLoading(false));
-        }
-    };
+    const { data: addresses = [], isLoading: loading, refetch: fetchAddresses } = useAddresses();
 
     const handleDelete = (id: string) => {
         Alert.alert(
@@ -59,6 +40,8 @@ export default function AddressesScreen() {
                     onPress: async () => {
                         try {
                             await api.delete(`/api/addresses/${id}`);
+                            // Optimization: We could invalidate the query instead of just manual Redux update
+                            fetchAddresses();
                             dispatch(removeAddressAction(id));
                             Alert.alert('Success', 'Address deleted successfully');
                         } catch (error) {
@@ -134,7 +117,7 @@ export default function AddressesScreen() {
         </Animated.View>
     );
 
-    if (loading) {
+    if (loading && addresses.length === 0) {
         return (
             <SafeView gradient={gradients.background as any}>
                 <View style={styles.loadingContainer}>
@@ -159,6 +142,8 @@ export default function AddressesScreen() {
                     renderItem={renderAddress}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
+                    onRefresh={fetchAddresses}
+                    refreshing={loading}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="location-outline" size={64} color={colors.textMuted} />

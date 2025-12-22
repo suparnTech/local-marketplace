@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Alert,
     Dimensions,
-    Image,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -27,6 +27,7 @@ import { KineticCard } from '../../src/components/ui/KineticCard';
 import { SafeView } from '../../src/components/ui/SafeView';
 import { Skeleton } from '../../src/components/ui/Skeleton';
 import { useShopDetail, useShopProducts } from '../../src/hooks/useShopDetail';
+import { useShopCoupons } from '../../src/hooks/useShops';
 import { addToCart } from '../../src/store/slices/cartSlice';
 import { colors } from '../../src/theme/colors';
 import { gradients } from '../../src/theme/gradients';
@@ -47,6 +48,9 @@ interface Shop {
     address_line1: string;
     phone: string;
     category_name: string;
+    is_open: boolean;
+    delivery_radius_km: number;
+    min_order_amount: number;
 }
 
 interface Product {
@@ -71,6 +75,7 @@ export default function ShopDetailScreen() {
     // Use React Query hooks
     const { data: shop, isLoading: loadingShop, refetch: refetchShop } = useShopDetail(shopId);
     const { data: products = [], isLoading: loadingProducts, refetch: refetchProducts } = useShopProducts(shopId);
+    const { data: coupons = [], isLoading: loadingCoupons } = useShopCoupons(shopId || '');
 
     const loading = loadingShop || loadingProducts;
     const [refreshing, setRefreshing] = useState(false);
@@ -134,7 +139,8 @@ export default function ShopDetailScreen() {
                             <Image
                                 source={{ uri: item.images[0] || 'https://via.placeholder.com/150' }}
                                 style={styles.productImage}
-                                resizeMode="cover"
+                                contentFit="cover"
+                                transition={500}
                             />
                             <LinearGradient
                                 colors={['transparent', 'rgba(0,0,0,0.4)']}
@@ -236,7 +242,12 @@ export default function ShopDetailScreen() {
             {/* Parallax Hero Background */}
             <View style={styles.heroBackground}>
                 {shop.logo_url ? (
-                    <Image source={{ uri: shop.logo_url }} style={styles.heroImage} resizeMode="cover" />
+                    <Image
+                        source={{ uri: shop.logo_url }}
+                        style={styles.heroImage}
+                        contentFit="cover"
+                        transition={600}
+                    />
                 ) : (
                     <LinearGradient
                         colors={[colors.primary + '40', colors.primaryDark + '60']}
@@ -277,9 +288,21 @@ export default function ShopDetailScreen() {
                                 <View style={styles.shopTitleContainer}>
                                     <View style={styles.shopIdentityRow}>
                                         <Text style={styles.shopNameLarge}>{shop.name}</Text>
-                                        <View style={styles.statusBadgeSmall}>
-                                            <View style={styles.statusDotSmall} />
-                                            <Text style={styles.statusTextSmall}>Open Now</Text>
+                                        <View style={[
+                                            styles.statusBadgeSmall,
+                                            { backgroundColor: shop.is_open ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)' },
+                                            { borderColor: shop.is_open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)' }
+                                        ]}>
+                                            <View style={[
+                                                styles.statusDotSmall,
+                                                { backgroundColor: shop.is_open ? '#10B981' : '#EF4444' }
+                                            ]} />
+                                            <Text style={[
+                                                styles.statusTextSmall,
+                                                { color: shop.is_open ? '#10B981' : '#EF4444' }
+                                            ]}>
+                                                {shop.is_open ? 'Open Now' : 'Closed'}
+                                            </Text>
                                         </View>
                                     </View>
                                     <Text style={styles.categoryTextSmall}>{shop.category_name}</Text>
@@ -308,8 +331,68 @@ export default function ShopDetailScreen() {
                                     <Text style={styles.metaLabel}>{shop.phone}</Text>
                                 </View>
                             </View>
+
+                            <View style={styles.deliveryMetaRow}>
+                                <View style={styles.deliveryMetaItem}>
+                                    <Ionicons name="bicycle" size={16} color={colors.primary} />
+                                    <Text style={styles.deliveryMetaText}>Delivery in {shop.delivery_radius_km}km</Text>
+                                </View>
+                                <View style={styles.deliveryMetaDivider} />
+                                <View style={styles.deliveryMetaItem}>
+                                    <Ionicons name="wallet-outline" size={16} color={colors.primary} />
+                                    <Text style={styles.deliveryMetaText}>Min ₹{shop.min_order_amount}</Text>
+                                </View>
+                            </View>
                         </GlassCard>
                     </Animated.View>
+
+                    {/* Available Offers Section */}
+                    {coupons.length > 0 && (
+                        <Animated.View entering={FadeInUp.delay(350).springify()}>
+                            <View style={styles.offersSection}>
+                                <View style={styles.sectionHeader}>
+                                    <Ionicons name="pricetag" size={18} color={colors.primary} />
+                                    <Text style={styles.sectionTitle}>Available Offers</Text>
+                                </View>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.offersList}
+                                >
+                                    {coupons.map((coupon) => (
+                                        <TouchableOpacity
+                                            key={coupon.id}
+                                            style={styles.couponCard}
+                                            onPress={() => {
+                                                Alert.alert('Coupon Code', `Use code ${coupon.code} at checkout!`, [
+                                                    { text: 'Copy Code', onPress: () => { /* Add clipboard logic if needed */ } },
+                                                    { text: 'OK' }
+                                                ]);
+                                            }}
+                                        >
+                                            <GlassCard style={styles.couponGlass} intensity={30}>
+                                                <View style={styles.couponLeft}>
+                                                    <LinearGradient
+                                                        colors={[colors.primary, colors.primaryDark]}
+                                                        style={styles.couponBadge}
+                                                    >
+                                                        <Text style={styles.couponBadgeText}>
+                                                            {coupon.discount_type === 'percentage' ? `${coupon.discount_value}%` : `₹${coupon.discount_value}`}
+                                                        </Text>
+                                                        <Text style={styles.couponBadgeSub}>OFF</Text>
+                                                    </LinearGradient>
+                                                </View>
+                                                <View style={styles.couponRight}>
+                                                    <Text style={styles.couponCodeText}>{coupon.code}</Text>
+                                                    <Text style={styles.couponMinOrder}>Min. ₹{coupon.min_order_amount}</Text>
+                                                </View>
+                                            </GlassCard>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        </Animated.View>
+                    )}
 
                     {/* Product Ecosystem */}
                     <View style={styles.productsSectionPortal}>
@@ -602,6 +685,31 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: colors.text,
     },
+    deliveryMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        marginTop: 4,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.05)',
+    },
+    deliveryMetaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    deliveryMetaText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.textMuted,
+    },
+    deliveryMetaDivider: {
+        width: 1,
+        height: 12,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+    },
     productsSectionPortal: {
         padding: spacing.lg,
         marginTop: spacing.xl,
@@ -796,5 +904,71 @@ const styles = StyleSheet.create({
     glossOverlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(255,255,255,0.1)',
+    },
+    offersSection: {
+        marginTop: spacing.xl,
+    },
+    offersList: {
+        paddingHorizontal: spacing.lg,
+        paddingBottom: spacing.md,
+        gap: spacing.md,
+    },
+    couponCard: {
+        width: 180,
+    },
+    couponGlass: {
+        flexDirection: 'row',
+        padding: spacing.sm,
+        alignItems: 'center',
+        gap: spacing.md,
+        borderRadius: 16,
+    },
+    couponLeft: {
+        alignItems: 'center',
+    },
+    couponBadge: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    couponBadgeText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '900',
+    },
+    couponBadgeSub: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 8,
+        fontWeight: '700',
+        marginTop: -2,
+    },
+    couponRight: {
+        flex: 1,
+    },
+    couponCodeText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    couponMinOrder: {
+        color: colors.textMuted,
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: spacing.md,
+        paddingHorizontal: spacing.lg,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: colors.text,
     },
 });

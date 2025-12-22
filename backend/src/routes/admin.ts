@@ -7,27 +7,32 @@ const router = express.Router();
 
 // Middleware to check if user is admin
 const requireAdmin = (req: AuthRequest, res: any, next: any) => {
-    console.log('👮 Checking admin access for role:', req.userRole);
     if (req.userRole !== 'ADMIN') {
-        console.log('❌ User is not admin:', req.userRole);
         return res.status(403).json({ error: 'Admin access required' });
     }
-    console.log('✅ Admin access granted');
     next();
 };
 
-// Get pending vendors
+// Get pending shops with details
 router.get('/pending-vendors', authenticate, requireAdmin, async (req, res) => {
     try {
-        console.log('📋 Admin fetching pending vendors');
+        // Join users, shops, and towns to get full info
         const result = await pool.query(
-            `SELECT id, name, email, phone, created_at 
-       FROM users 
-       WHERE role = 'STORE_OWNER' AND is_approved = false
-       ORDER BY created_at DESC`
+            `SELECT 
+                s.id as id,
+                s.name as "businessName",
+                u.name as "ownerName",
+                u.phone,
+                t.name as city,
+                s.verification_status as status,
+                s.updated_at as "submittedAt"
+            FROM shops s
+            JOIN users u ON s.owner_id = u.id
+            LEFT JOIN towns t ON s.town_id = t.id
+            WHERE s.verification_status = 'submitted' OR (u.role = 'STORE_OWNER' AND u.is_approved = false AND s.id IS NOT NULL)
+            ORDER BY s.updated_at DESC`
         );
 
-        console.log(`✅ Found ${result.rows.length} pending vendors`);
         res.json(result.rows);
     } catch (error: any) {
         console.error('Get pending vendors error:', error);
@@ -35,61 +40,152 @@ router.get('/pending-vendors', authenticate, requireAdmin, async (req, res) => {
     }
 });
 
-// Approve vendor
-router.post('/approve-vendor/:id', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+// Get specific shop KYC details
+router.get('/shops/:shopId/kyc', authenticate, requireAdmin, async (req, res) => {
     try {
-        const { id } = req.params;
+        const { shopId } = req.params;
+
+        const result = await pool.query(
+            `SELECT 
+                s.*,
+                u.name as owner_name,
+                u.email as owner_email,
+                u.phone as owner_phone,
+                t.name as town_name,
+                t.state as town_state
+            FROM shops s
+            JOIN users u ON s.owner_id = u.id
+            LEFT JOIN towns t ON s.town_id = t.id
+            WHERE s.id = $1`,
+            [shopId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Shop not found' });
+        }
+
+        const shop = result.rows[0];
+
+        // Structure response for frontend
+        const response = {
+            businessName: shop.name,
+            ownerName: shop.owner_name,
+            phone: shop.owner_phone,
+            email: shop.owner_email,
+            address: `${shop.address_line1 || ''}, ${shop.town_name || ''}, ${shop.town_state || ''} - ${shop.pincode || ''}`,
+            gstNumber: shop.gst_number,
+            panNumber: shop.pan_number,
+            aadhaarNumber: 'Not Stored', // Security best practice
+            accountNumber: shop.bank_account_number,
+            ifscCode: shop.ifsc_code,
+            documents: {
+                gst: shop.gst_document_url,
+                pan: shop.pan_document_url,
+                aadhaar: shop.aadhaar_document_url,
+                shopLicense: shop.shop_license_url,
+                cancelledCheque: shop.cancelled_cheque_url,
+                shopPhotos: [], // TODO: Add multiple photos support if needed
+            }
+        };
+
+        res.json(response);
+    } catch (error: any) {
+        console.error('Get shop KYC error:', error);
+        res.status(500).json({ error: 'Failed to fetch shop details' });
+    }
+});
+
+// Verify shop (Approve/Reject)
+router.post('/shops/:shopId/verify', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+    const client = await pool.connect();
+    try {
+        const { shopId } = req.params;
+        const { status, reason } = req.body; // status: 'approved' | 'rejected'
         const adminId = req.userId;
 
-        await pool.query(
-            `UPDATE users 
-       SET is_approved = true, approved_at = NOW(), approved_by = $1
-       WHERE id = $2 AND role = 'STORE_OWNER'`,
-            [adminId, id]
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+
+        await client.query('BEGIN');
+
+        // Update shop status
+        await client.query(
+            `UPDATE shops 
+             SET verification_status = $1, 
+                 is_approved = $2, 
+                 rejection_reason = $3,
+                 verified_at = NOW()
+             WHERE id = $4`,
+            [status, status === 'approved', reason || null, shopId]
         );
 
-        // TODO: Send approval email to vendor
+        // Get owner_id
+        const shopRes = await client.query('SELECT owner_id FROM shops WHERE id = $1', [shopId]);
+        if (shopRes.rows.length > 0) {
+            const ownerId = shopRes.rows[0].owner_id;
 
-        res.json({ message: 'Vendor approved successfully' });
+            // Update user status
+            await client.query(
+                `UPDATE users 
+                 SET is_approved = $1, 
+                     approved_at = $2, 
+                     approved_by = $3
+                 WHERE id = $4`,
+                [status === 'approved', status === 'approved' ? new Date() : null, adminId, ownerId]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: `Shop ${status} successfully` });
     } catch (error: any) {
-        console.error('Approve vendor error:', error);
-        res.status(500).json({ error: 'Failed to approve vendor' });
+        await client.query('ROLLBACK');
+        console.error('Verify shop error:', error);
+        res.status(500).json({ error: 'Failed to verify shop' });
+    } finally {
+        client.release();
     }
 });
 
-// Reject vendor
-router.post('/reject-vendor/:id', authenticate, requireAdmin, async (req, res) => {
+router.post('/run-migration-products', authenticate, requireAdmin, async (req, res) => {
+    const client = await pool.connect();
     try {
-        const { id } = req.params;
+        await client.query('BEGIN');
 
-        // Delete the user (or you could mark as rejected instead)
-        await pool.query(
-            `DELETE FROM users WHERE id = $1 AND role = 'STORE_OWNER' AND is_approved = false`,
-            [id]
-        );
+        // Add columns to products table
+        await client.query(`
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS shop_price DECIMAL(10,2);
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS customer_price DECIMAL(10,2);
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(10,2);
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS mrp DECIMAL(10,2);
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50);
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS hsn_code VARCHAR(50);
+            ALTER TABLE products ADD COLUMN IF NOT EXISTS expiry_date DATE;
+        `);
 
-        // TODO: Send rejection email to vendor
+        // Create product_uploads table
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS product_uploads (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              shop_id UUID REFERENCES shops(id),
+              file_name TEXT,
+              total_rows INTEGER,
+              successful_rows INTEGER,
+              failed_rows INTEGER,
+              error_log JSONB,
+              status VARCHAR(20) DEFAULT 'processing',
+              created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-        res.json({ message: 'Vendor rejected successfully' });
+        await client.query('COMMIT');
+        res.json({ message: 'Migration executed successfully' });
     } catch (error: any) {
-        console.error('Reject vendor error:', error);
-        res.status(500).json({ error: 'Failed to reject vendor' });
-    }
-});
-
-// Get all users
-router.get('/users', authenticate, requireAdmin, async (req, res) => {
-    try {
-        const result = await pool.query(
-            `SELECT id, name, email, phone, role, is_approved, created_at 
-       FROM users 
-       ORDER BY created_at DESC`
-        );
-
-        res.json(result.rows);
-    } catch (error: any) {
-        console.error('Get users error:', error);
-        res.status(500).json({ error: 'Failed to fetch users' });
+        await client.query('ROLLBACK');
+        console.error('Migration error:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
     }
 });
 

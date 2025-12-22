@@ -27,11 +27,17 @@ const { width } = Dimensions.get('window');
 
 const STATUS_CONFIG: any = {
   pending: { label: 'Pending', color: colors.accent, icon: 'time', glow: colors.accent + '40' },
+  PENDING: { label: 'Pending', color: colors.accent, icon: 'time', glow: colors.accent + '40' },
   accepted: { label: 'Accepted', color: '#10B981', icon: 'checkmark-circle', glow: '#10B98140' },
+  CONFIRMED: { label: 'Accepted', color: '#10B981', icon: 'checkmark-circle', glow: '#10B98140' },
   preparing: { label: 'Preparing', color: '#F59E0B', icon: 'restaurant', glow: '#F59E0B40' },
+  PREPARING: { label: 'Preparing', color: '#F59E0B', icon: 'restaurant', glow: '#F59E0B40' },
   out_for_delivery: { label: 'Out for Delivery', color: '#3B82F6', icon: 'bicycle', glow: '#3B82F640' },
+  OUT_FOR_DELIVERY: { label: 'Out for Delivery', color: '#3B82F6', icon: 'bicycle', glow: '#3B82F640' },
   delivered: { label: 'Delivered', color: '#10B981', icon: 'checkmark-done', glow: '#10B98140' },
+  DELIVERED: { label: 'Delivered', color: '#10B981', icon: 'checkmark-done', glow: '#10B98140' },
   cancelled: { label: 'Cancelled', color: colors.error, icon: 'close-circle', glow: colors.error + '40' },
+  CANCELLED: { label: 'Cancelled', color: colors.error, icon: 'close-circle', glow: colors.error + '40' },
 };
 
 export default function OrdersScreen() {
@@ -43,7 +49,7 @@ export default function OrdersScreen() {
 
   // Filter orders client-side
   const orders = filter
-    ? allOrders.filter(order => order.status === filter)
+    ? allOrders.filter(order => order.status?.toLowerCase() === filter.toLowerCase())
     : allOrders;
 
   const onRefresh = async () => {

@@ -12,6 +12,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -47,10 +48,14 @@ export default function CheckoutScreen() {
     const [paymentMethod, setPaymentMethod] = useState<'cod' | 'online'>('cod');
     const [currentStep, setCurrentStep] = useState(0); // 0: Address, 1: Payment, 2: Review
     const [placing, setPlacing] = useState(false);
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+    const [validatingCoupon, setValidatingCoupon] = useState(false);
 
     const deliveryFee = 40;
     const tax = Math.round(total * 0.05);
-    const grandTotal = total + deliveryFee + tax;
+    const discount = appliedCoupon ? appliedCoupon.discount_amount : 0;
+    const grandTotal = total + deliveryFee + tax - discount;
 
     // Shimmer effect for button
     const shimmerValue = useSharedValue(-1);
@@ -141,6 +146,27 @@ export default function CheckoutScreen() {
         );
     };
 
+    const handleApplyCoupon = async () => {
+        if (!couponCode.trim()) return;
+
+        try {
+            setValidatingCoupon(true);
+            const response = await api.post('/api/orders/validate-coupon', {
+                code: couponCode,
+                items: cartItems
+            });
+
+            setAppliedCoupon(response.data);
+            Alert.alert('Success', response.data.message);
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error || 'Failed to apply coupon';
+            Alert.alert('Coupon Error', errorMsg);
+            setAppliedCoupon(null);
+        } finally {
+            setValidatingCoupon(false);
+        }
+    };
+
     const createOrder = async (paymentData: any) => {
         try {
             setPlacing(true);
@@ -166,6 +192,7 @@ export default function CheckoutScreen() {
                     delivery_fee: deliveryFee,
                     tax,
                     total: storeTotal + deliveryFee + tax,
+                    coupon_code: appliedCoupon?.code === couponCode ? couponCode : null,
                     ...paymentData,
                 });
             });
@@ -335,6 +362,58 @@ export default function CheckoutScreen() {
                         </LinearGradient>
                     </Animated.View>
 
+                    {/* Section: Coupons & Offers */}
+                    <Animated.View entering={FadeInDown.delay(450)} style={styles.section}>
+                        <GlassCard style={styles.couponSectionGlass}>
+                            <View style={styles.couponHeader}>
+                                <MaterialCommunityIcons name="ticket-percent" size={20} color={colors.primary} />
+                                <Text style={styles.couponTitle}>Coupons & Offers</Text>
+                            </View>
+                            <View style={styles.couponInputRow}>
+                                <TextInput
+                                    style={styles.couponInput}
+                                    placeholder="Enter coupon code"
+                                    placeholderTextColor={colors.textMuted}
+                                    value={couponCode}
+                                    onChangeText={(text) => setCouponCode(text.toUpperCase())}
+                                    autoCapitalize="characters"
+                                    editable={!appliedCoupon}
+                                />
+                                {appliedCoupon ? (
+                                    <TouchableOpacity
+                                        style={styles.removeCouponBtn}
+                                        onPress={() => {
+                                            setAppliedCoupon(null);
+                                            setCouponCode('');
+                                        }}
+                                    >
+                                        <Text style={styles.removeCouponText}>Remove</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={[styles.applyCouponBtn, !couponCode && styles.applyCouponBtnDisabled]}
+                                        onPress={handleApplyCoupon}
+                                        disabled={!couponCode || validatingCoupon}
+                                    >
+                                        {validatingCoupon ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <Text style={styles.applyCouponText}>Apply</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            {appliedCoupon && (
+                                <View style={styles.appliedBadge}>
+                                    <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                                    <Text style={styles.appliedText}>
+                                        '{appliedCoupon.code}' applied! You saved ₹{appliedCoupon.discount_amount}
+                                    </Text>
+                                </View>
+                            )}
+                        </GlassCard>
+                    </Animated.View>
+
                     {/* Section 3: Summary */}
                     <Animated.View entering={FadeInDown.delay(500)} style={styles.section}>
                         <GlassCard style={styles.summaryCard}>
@@ -357,6 +436,12 @@ export default function CheckoutScreen() {
                                 <Text style={styles.priceLabel}>Platform Tax & Charges</Text>
                                 <Text style={styles.priceValue}>₹{tax}</Text>
                             </View>
+                            {discount > 0 && (
+                                <View style={styles.priceRow}>
+                                    <Text style={styles.discountLabel}>Coupon Discount</Text>
+                                    <Text style={styles.discountValue}>-₹{discount}</Text>
+                                </View>
+                            )}
 
                             <View style={styles.divider} />
 
@@ -535,4 +620,19 @@ const styles = StyleSheet.create({
     buttonAction: { color: colors.text, fontSize: 14, fontWeight: '600', opacity: 0.9 },
     buttonEmoji: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     shimmer: { position: 'absolute', top: 0, left: 0, width: '40%', height: '100%', opacity: 0.5 },
+
+    couponSectionGlass: { padding: spacing.md, borderRadius: borderRadius.lg },
+    couponHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm },
+    couponTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+    couponInputRow: { flexDirection: 'row', gap: spacing.sm },
+    couponInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    applyCouponBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 20, justifyContent: 'center' },
+    applyCouponBtnDisabled: { opacity: 0.5 },
+    applyCouponText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    removeCouponBtn: { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, paddingHorizontal: 15, justifyContent: 'center' },
+    removeCouponText: { color: '#EF4444', fontWeight: '700', fontSize: 13 },
+    appliedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, backgroundColor: 'rgba(16, 185, 129, 0.05)', padding: 8, borderRadius: 8 },
+    appliedText: { color: '#10B981', fontSize: 12, fontWeight: '600' },
+    discountLabel: { fontSize: 14, color: '#10B981', fontWeight: '600' },
+    discountValue: { fontSize: 15, color: '#10B981', fontWeight: '800' },
 });

@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // Navigate based on role
             if (userData.role === "ADMIN") {
-                router.replace("/admin/dashboard" as any);
+                router.replace("/admin/(tabs)/pending" as any);
             } else if (userData.role === "STORE_OWNER") {
                 router.replace("/store-owner/dashboard");
             } else {

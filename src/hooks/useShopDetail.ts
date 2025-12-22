@@ -5,14 +5,17 @@ import { api } from '../lib/api';
 interface Shop {
     id: string;
     name: string;
-    description?: string;
+    description: string;
     logo_url?: string;
     cover_image_url?: string;
     rating: number;
     category_name: string;
     town_name: string;
-    address_line1?: string;
-    phone?: string;
+    address_line1: string;
+    phone: string;
+    is_open: boolean;
+    delivery_radius_km: number;
+    min_order_amount: number;
     status: string;
 }
 

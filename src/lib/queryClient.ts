@@ -31,33 +31,49 @@ export const queryClient = new QueryClient({
     },
 });
 
-// Persistence helper (optional - for offline support)
-export const persistQueryClient = async () => {
+// Persistence helper
+const CACHE_KEY = 'REACT_QUERY_OFFLINE_CACHE';
+
+// Improved persistence that handles the structure more carefully
+export const persistQueryClient = async (client: QueryClient) => {
     try {
-        const queryCache = queryClient.getQueryCache();
-        const queries = queryCache.getAll();
+        const cache = client.getQueryCache();
+        const queries = cache.getAll();
 
-        const persistData = queries.map(query => ({
-            queryKey: query.queryKey,
-            queryHash: query.queryHash,
-            state: query.state,
-        }));
+        // We only persist queries that have data and are successful
+        const dataToPersist = queries
+            .filter(q => q.state.status === 'success' && q.state.data)
+            .map(q => ({
+                queryKey: q.queryKey,
+                state: {
+                    data: q.state.data,
+                    dataUpdatedAt: q.state.dataUpdatedAt,
+                }
+            }));
 
-        await AsyncStorage.setItem('REACT_QUERY_CACHE', JSON.stringify(persistData));
+        if (dataToPersist.length > 0) {
+            await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(dataToPersist));
+            // console.log(`💾 Persisted ${dataToPersist.length} queries`);
+        }
     } catch (error) {
         console.error('Failed to persist query cache:', error);
     }
 };
 
 // Restore cache on app start
-export const restoreQueryClient = async () => {
+export const restoreQueryClient = async (client: QueryClient) => {
     try {
-        const cached = await AsyncStorage.getItem('REACT_QUERY_CACHE');
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
         if (cached) {
-            const persistData = JSON.parse(cached);
-            // Note: Full restoration would require more complex logic
-            // For now, we'll rely on fresh fetches with cache
-            console.log('📦 Query cache restored from storage');
+            const persistedData = JSON.parse(cached);
+
+            persistedData.forEach((item: any) => {
+                client.setQueryData(item.queryKey, item.state.data, {
+                    updatedAt: item.state.dataUpdatedAt
+                });
+            });
+
+            console.log(`📦 Restored ${persistedData.length} queries from storage`);
         }
     } catch (error) {
         console.error('Failed to restore query cache:', error);

@@ -3,6 +3,7 @@
 
 import express from 'express';
 import { pool } from '../lib/db';
+import { emitNewOrder } from '../lib/socket';
 import { authenticate } from '../middleware/auth';
 import { createRazorpayOrder } from '../services/razorpay';
 
@@ -155,14 +156,40 @@ router.post('/', async (req, res) => {
                 deliveryFee = calculateDeliveryFee(distance);
             }
 
-            // Calculate amounts
             const subtotal = itemsArray.reduce((sum, item) =>
                 sum + (item.price * item.quantity), 0
             );
 
             const tax = Math.round(subtotal * 0.05); // 5% tax
-            const shopDiscount = discountAmount * (subtotal / items.reduce((s: number, i: any) =>
-                s + (i.price * i.quantity), 0));
+
+            // Refined discount logic: only apply if coupon matches THIS store
+            let shopDiscount = 0;
+            const couponResult = await client.query(
+                `SELECT * FROM coupons WHERE code = $1 AND shop_id = $2`,
+                [coupon_code, storeId]
+            );
+
+            if (couponResult.rows.length > 0) {
+                const coupon = couponResult.rows[0];
+                if (subtotal >= coupon.min_order_amount) {
+                    if (coupon.discount_type === 'percentage') {
+                        shopDiscount = (subtotal * coupon.discount_value) / 100;
+                        if (coupon.max_discount_amount) {
+                            shopDiscount = Math.min(shopDiscount, coupon.max_discount_amount);
+                        }
+                    } else {
+                        shopDiscount = Math.min(subtotal, coupon.discount_value);
+                    }
+
+                    // Update usage only once per coupon per checkout 
+                    // (Actually we should probably do this outside the loop if it's one coupon for the whole cart, 
+                    // but here one coupon belongs to one shop)
+                    await client.query(
+                        'UPDATE coupons SET used_count = used_count + 1 WHERE id = $1',
+                        [coupon.id]
+                    );
+                }
+            }
 
             const totalAmount = subtotal + deliveryFee + tax - shopDiscount;
 
@@ -237,6 +264,14 @@ router.post('/', async (req, res) => {
                 [order.id, storeId, subtotal, commissionPercentage,
                     commissionAmount, shopPayout, platformFee]
             );
+
+            // Notify shop owner in real-time
+            emitNewOrder(storeId, {
+                orderId: order.id,
+                totalAmount,
+                customerName: address.name || 'Customer', // Fix: address structure might differ
+                itemsCount: itemsArray.length
+            });
         }
 
         await client.query('COMMIT');
@@ -356,6 +391,67 @@ router.put('/:id/cancel', async (req, res) => {
     } catch (error: any) {
         console.error('Cancel order error:', error);
         res.status(500).json({ error: 'Failed to cancel order' });
+    }
+});
+
+// POST /api/orders/validate-coupon - Validate a coupon code for cart items
+router.post('/validate-coupon', async (req, res) => {
+    try {
+        const { code, items } = req.body;
+        if (!code || !items || !items.length) {
+            return res.status(400).json({ error: 'Code and items are required' });
+        }
+
+        const result = await pool.query(
+            `SELECT * FROM coupons 
+             WHERE code = $1 AND is_active = true 
+             AND valid_from <= NOW() 
+             AND (valid_until IS NULL OR valid_until >= NOW())
+             AND (usage_limit IS NULL OR used_count < usage_limit)`,
+            [code.toUpperCase()]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Invalid or expired coupon code' });
+        }
+
+        const coupon = result.rows[0];
+        const shopId = coupon.shop_id;
+
+        // Calculate subtotal for items belonging to this shop
+        const shopItems = items.filter((item: any) => (item.store_id || item.shop_id) === shopId);
+        if (shopItems.length === 0) {
+            return res.status(400).json({ error: 'This coupon is not applicable to items in your cart' });
+        }
+
+        const subtotal = shopItems.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+
+        if (subtotal < coupon.min_order_amount) {
+            return res.status(400).json({
+                error: `Minimum order amount of ₹${coupon.min_order_amount} required for this coupon`
+            });
+        }
+
+        let discount = 0;
+        if (coupon.discount_type === 'percentage') {
+            discount = (subtotal * coupon.discount_value) / 100;
+            if (coupon.max_discount_amount) {
+                discount = Math.min(discount, coupon.max_discount_amount);
+            }
+        } else {
+            discount = Math.min(subtotal, coupon.discount_value);
+        }
+
+        res.json({
+            valid: true,
+            coupon_id: coupon.id,
+            discount_amount: Math.round(discount),
+            shop_id: shopId,
+            message: 'Coupon applied successfully!'
+        });
+    } catch (error) {
+        console.error('Validate coupon error:', error);
+        res.status(500).json({ error: 'Failed to validate coupon' });
     }
 });
 

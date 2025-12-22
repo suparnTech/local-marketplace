@@ -29,11 +29,11 @@ const ITEM_CARD_WIDTH = width - spacing.lg * 2;
 const HEADER_HEIGHT = 100;
 
 const STATUS_TIMELINE = [
-    { key: 'pending', label: 'Order Placed', icon: 'checkmark-circle' },
-    { key: 'accepted', label: 'Accepted', icon: 'checkmark-done-circle' },
-    { key: 'preparing', label: 'Preparing', icon: 'restaurant' },
-    { key: 'out_for_delivery', label: 'Out for Delivery', icon: 'bicycle' },
-    { key: 'delivered', label: 'Delivered', icon: 'gift' },
+    { key: 'PENDING', label: 'Order Placed', icon: 'checkmark-circle' },
+    { key: 'CONFIRMED', label: 'Accepted', icon: 'checkmark-done-circle' },
+    { key: 'PREPARING', label: 'Preparing', icon: 'restaurant' },
+    { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: 'bicycle' },
+    { key: 'DELIVERED', label: 'Delivered', icon: 'gift' },
 ];
 
 export default function OrderDetailScreen() {
@@ -109,8 +109,9 @@ export default function OrderDetailScreen() {
         minute: '2-digit',
     });
 
-    const isCancelled = order.status === 'cancelled';
-    const statusIndex = STATUS_TIMELINE.findIndex(s => s.key === order.status);
+    const currentStatus = order.status?.toUpperCase();
+    const isCancelled = currentStatus === 'CANCELLED';
+    const statusIndex = STATUS_TIMELINE.findIndex(s => s.key === currentStatus);
 
     return (
         <SafeView gradient={gradients.background as any}>
@@ -252,7 +253,7 @@ export default function OrderDetailScreen() {
                                 <Text style={styles.billLabel}>Logistics Fee</Text>
                                 <Text style={styles.billValue}>₹{order.delivery_fee || 0}</Text>
                             </View>
-                            {order.discount_amount > 0 && (
+                            {(order.discount_amount || 0) > 0 && (
                                 <View style={styles.billRow}>
                                     <Text style={[styles.billLabel, { color: colors.accent }]}>Reward Discount</Text>
                                     <Text style={[styles.billValue, { color: colors.accent }]}>-₹{order.discount_amount}</Text>
@@ -273,7 +274,7 @@ export default function OrderDetailScreen() {
                 </Animated.View>
 
                 {/* Termination Portal */}
-                {order.status === 'pending' && (
+                {currentStatus === 'PENDING' && (
                     <Animated.View entering={FadeInUp.delay(500).springify()}>
                         <TouchableOpacity style={styles.terminationBtn} onPress={handleCancelOrder}>
                             <LinearGradient
