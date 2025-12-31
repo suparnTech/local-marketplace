@@ -16,9 +16,10 @@ export const colors = {
   accentLight: '#FCD34D', // Amber 300
 
   // Success, Warning, Error
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
+  error: '#ef4444',
+  warning: '#f59e0b',
+  info: '#3b82f6',
+  success: '#10b981',
   danger: '#DC2626',
 
   // Dark Backgrounds - Very dark green/black
@@ -30,11 +31,13 @@ export const colors = {
   // Text
   text: '#FFFFFF', // Pure White
   textMuted: '#94A3B8', // Slate 400
+  textSecondary: '#94A3B8', // Slate 400 (alias for textMuted)
   textDark: '#64748B',
 
   // Borders & Overlays
   border: 'rgba(16, 185, 129, 0.15)', // Green tinted border
   borderLight: 'rgba(16, 185, 129, 0.25)',
+  glassBorder: 'rgba(16, 185, 129, 0.2)', // Glass border
   overlay: 'rgba(10, 15, 10, 0.9)',
 
   // Glassmorphism - Green tinted

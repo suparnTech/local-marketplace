@@ -41,9 +41,15 @@ app.use("/api/shops", cacheMiddleware(300), shopsRouter); // Shops API (5min cac
 app.use("/api/products", productsRouter); // Products API
 app.use("/api/addresses", require("./routes/addresses").default); // Addresses API
 app.use("/api/orders", require("./routes/orders").default); // Orders API
+app.use("/api/upload", require("./routes/upload").default); // File upload API
 
 // Shop Owner Portal APIs
 app.use("/api/shop-owner", shopOwnerRouter); // Shop owner profile & registration (and sub-routes)
+
+// Delivery Partner Portal APIs
+app.use("/api/delivery-partner", require("./routes/delivery-partner").default); // Delivery partner profile & registration
+app.use("/api/delivery-assignments", require("./routes/delivery-assignments").default); // Delivery assignments
+app.use("/api/admin", require("./routes/admin-delivery").default); // Admin delivery management
 
 import { createServer } from "http";
 import { initSocket } from "./lib/socket";

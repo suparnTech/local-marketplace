@@ -133,6 +133,49 @@ export default function OrderDetailScreen() {
             >
                 <View style={{ height: 20 }} />
 
+                {/* Delivery Partner Tracking */}
+                {order.delivery_partner_id && (
+                    <Animated.View entering={FadeInDown.delay(50).springify()}>
+                        <GlassCard style={styles.deliveryPartnerCard} intensity={30}>
+                            <View style={styles.deliveryPartnerHeader}>
+                                <Ionicons name="bicycle" size={24} color={colors.primary} />
+                                <Text style={styles.portalTitle}>Delivery Partner</Text>
+                            </View>
+                            <View style={styles.deliveryPartnerContent}>
+                                <View style={styles.partnerInfo}>
+                                    <Text style={styles.partnerName}>{order.delivery_partner_name || 'Partner'}</Text>
+                                    <View style={styles.partnerRating}>
+                                        <Ionicons name="star" size={14} color={colors.warning} />
+                                        <Text style={styles.ratingText}>{order.delivery_partner_rating?.toFixed(1) || '5.0'}</Text>
+                                    </View>
+                                </View>
+                                {order.delivery_partner_phone && (
+                                    <TouchableOpacity
+                                        style={styles.callPartnerButton}
+                                        onPress={() => {
+                                            require('react-native').Linking.openURL(`tel:${order.delivery_partner_phone}`);
+                                        }}
+                                    >
+                                        <Ionicons name="call" size={18} color="#fff" />
+                                        <Text style={styles.callPartnerText}>Call</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            {order.delivery_status && (
+                                <View style={styles.liveDeliveryStatus}>
+                                    <View style={styles.pulsingDot} />
+                                    <Text style={styles.deliveryStatusText}>
+                                        {order.delivery_status === 'on_way_to_pickup' && '🏍️ Going to shop'}
+                                        {order.delivery_status === 'picked_up' && '📦 Picked up from shop'}
+                                        {order.delivery_status === 'on_way_to_delivery' && '🚀 On the way to you'}
+                                        {order.delivery_status === 'reached_customer' && '📍 Reached your location'}
+                                    </Text>
+                                </View>
+                            )}
+                        </GlassCard>
+                    </Animated.View>
+                )}
+
                 {/* Status Timeline Portal */}
                 <Animated.View entering={FadeInDown.delay(100).springify()}>
                     <GlassCard style={styles.portalCard} intensity={25}>
@@ -546,5 +589,74 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: colors.error,
         letterSpacing: 2,
+    },
+    deliveryPartnerCard: {
+        marginBottom: spacing.md,
+        padding: spacing.lg,
+    },
+    deliveryPartnerHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    deliveryPartnerContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: spacing.sm,
+    },
+    partnerInfo: {
+        flex: 1,
+    },
+    partnerName: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.text,
+        marginBottom: spacing.xs,
+    },
+    partnerRating: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    ratingText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.text,
+    },
+    callPartnerButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        backgroundColor: colors.primary,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: 12,
+    },
+    callPartnerText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    liveDeliveryStatus: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        padding: spacing.md,
+        backgroundColor: `${colors.info}20`,
+        borderRadius: 12,
+    },
+    pulsingDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: colors.success,
+    },
+    deliveryStatusText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.text,
+        flex: 1,
     },
 });

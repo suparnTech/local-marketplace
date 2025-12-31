@@ -17,11 +17,13 @@ import { gradients } from '../../src/theme/gradients';
 export default function RoleSelectionScreen() {
     const router = useRouter();
 
-    const handleRoleSelect = (role: 'customer' | 'shop_owner') => {
+    const handleRoleSelect = (role: 'customer' | 'shop_owner' | 'delivery_partner') => {
         if (role === 'customer') {
             router.push('/auth/login');
-        } else {
+        } else if (role === 'shop_owner') {
             router.push('/shop-owner/login');
+        } else {
+            router.push('/delivery-partner/register');
         }
     };
 
@@ -142,6 +144,54 @@ export default function RoleSelectionScreen() {
                                             Continue as Shop Owner
                                         </Text>
                                         <Ionicons name="arrow-forward" size={20} color="#fbbf24" />
+                                    </View>
+                                </GlassCard>
+                            </TouchableOpacity>
+                        </Animated.View>
+
+                        {/* Delivery Partner Card */}
+                        <Animated.View
+                            entering={FadeInUp.delay(400).springify()}
+                            style={styles.cardWrapper}
+                        >
+                            <TouchableOpacity
+                                style={styles.roleCard}
+                                onPress={() => router.push('/delivery-partner/login')}
+                                activeOpacity={0.9}
+                            >
+                                <GlassCard style={styles.roleCard}>
+                                    <LinearGradient
+                                        colors={['rgba(59, 130, 246, 0.3)', 'rgba(59, 130, 246, 0.1)']}
+                                        style={styles.roleIconContainer}
+                                    >
+                                        <Ionicons name="bicycle" size={40} color="#3b82f6" />
+                                    </LinearGradient>
+
+                                    <Text style={styles.roleTitle}>I'm a Delivery Partner</Text>
+                                    <Text style={styles.roleDescription}>
+                                        Earn money by delivering orders to customers in your area
+                                    </Text>
+
+                                    <View style={styles.features}>
+                                        <View style={styles.feature}>
+                                            <Ionicons name="checkmark-circle" size={18} color="#3b82f6" />
+                                            <Text style={styles.featureText}>Flexible working hours</Text>
+                                        </View>
+                                        <View style={styles.feature}>
+                                            <Ionicons name="checkmark-circle" size={18} color="#3b82f6" />
+                                            <Text style={styles.featureText}>Daily earnings payout</Text>
+                                        </View>
+                                        <View style={styles.feature}>
+                                            <Ionicons name="checkmark-circle" size={18} color="#3b82f6" />
+                                            <Text style={styles.featureText}>Bonus incentives</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.continueButton, styles.continueButtonDelivery]}>
+                                        <Text style={[styles.continueText, styles.continueTextDelivery]}>
+                                            Continue as Delivery Partner
+                                        </Text>
+                                        <Ionicons name="arrow-forward" size={20} color="#3b82f6" />
                                     </View>
                                 </GlassCard>
                             </TouchableOpacity>
@@ -283,6 +333,13 @@ const styles = StyleSheet.create({
     },
     continueTextAlt: {
         color: '#fbbf24',
+    },
+    continueButtonDelivery: {
+        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+        borderColor: 'rgba(59, 130, 246, 0.3)',
+    },
+    continueTextDelivery: {
+        color: '#3b82f6',
     },
     footer: {
         marginTop: 32,
