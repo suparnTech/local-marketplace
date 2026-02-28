@@ -40,6 +40,100 @@ router.get('/pending-vendors', authenticate, requireAdmin, async (req, res) => {
     }
 });
 
+// Get pending delivery partners
+router.get('/pending-delivery-partners', authenticate, requireAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                id,
+                full_name as "fullName",
+                email,
+                phone,
+                city,
+                vehicle_type as "vehicleType",
+                verification_status as status,
+                created_at as "submittedAt",
+                aadhaar_front_url,
+                driving_license_url
+            FROM delivery_partners
+            WHERE verification_status = 'pending'
+            ORDER BY created_at DESC`
+        );
+
+        res.json(result.rows);
+    } catch (error: any) {
+        console.error('Get pending delivery partners error:', error);
+        res.status(500).json({ error: 'Failed to fetch pending delivery partners' });
+    }
+});
+
+// Verify delivery partner (Approve/Reject)
+router.post('/delivery-partners/:partnerId/verify', authenticate, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+        const { partnerId } = req.params;
+        const { status, reason } = req.body; // status: 'approved' | 'rejected'
+
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+
+        await pool.query(
+            `UPDATE delivery_partners 
+             SET verification_status = $1, 
+                 rejection_reason = $2,
+                 verified_at = NOW()
+             WHERE id = $3`,
+            [status, reason || null, partnerId]
+        );
+
+        res.json({ message: `Delivery partner ${status} successfully` });
+    } catch (error: any) {
+        console.error('Verify delivery partner error:', error);
+        res.status(500).json({ error: 'Failed to verify delivery partner' });
+    }
+});
+
+// Get delivery partner KYC details
+router.get('/delivery-partners/:partnerId/kyc', authenticate, requireAdmin, async (req, res) => {
+    try {
+        const { partnerId } = req.params;
+
+        const result = await pool.query(
+            `SELECT * FROM delivery_partners WHERE id = $1`,
+            [partnerId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Delivery partner not found' });
+        }
+
+        const partner = result.rows[0];
+
+        // Convert S3 URLs to presigned URLs for viewing
+        const { getDownloadUrl } = require('../lib/s3');
+
+        const urlToPresigned = (url: string) => {
+            if (!url) return null;
+            // Extract key from URL (e.g., documents/uuid.jpg)
+            const match = url.match(/amazonaws\.com\/(.+)$/);
+            if (match && match[1]) {
+                return getDownloadUrl(match[1]);
+            }
+            return url;
+        };
+
+        partner.aadhaar_front_url = urlToPresigned(partner.aadhaar_front_url);
+        partner.aadhaar_back_url = urlToPresigned(partner.aadhaar_back_url);
+        partner.driving_license_url = urlToPresigned(partner.driving_license_url);
+        partner.vehicle_rc_url = urlToPresigned(partner.vehicle_rc_url);
+
+        res.json(partner);
+    } catch (error: any) {
+        console.error('Get delivery partner KYC error:', error);
+        res.status(500).json({ error: 'Failed to fetch delivery partner details' });
+    }
+});
+
 // Get specific shop KYC details
 router.get('/shops/:shopId/kyc', authenticate, requireAdmin, async (req, res) => {
     try {

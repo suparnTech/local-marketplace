@@ -14,6 +14,7 @@ router.post('/register', async (req: express.Request, res: Response) => {
         full_name,
         phone,
         email,
+        password,
         date_of_birth,
         address_line1,
         address_line2,
@@ -35,35 +36,37 @@ router.post('/register', async (req: express.Request, res: Response) => {
     } = req.body;
 
     try {
-        // Check if phone already registered
-        const existingUser = await db.query(
-            'SELECT id FROM users WHERE phone = $1',
-            [phone]
+        // Validate required fields
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        }
+
+        // Check if email already registered as delivery partner
+        const existingPartner = await db.query(
+            'SELECT id FROM delivery_partners WHERE email = $1',
+            [email]
         );
 
-        let userId;
-        if (existingUser.rows.length > 0) {
-            userId = existingUser.rows[0].id;
-
-            // Check if already registered as delivery partner
-            const existingPartner = await db.query(
-                'SELECT id FROM delivery_partners WHERE user_id = $1',
-                [userId]
-            );
-
-            if (existingPartner.rows.length > 0) {
-                return res.status(400).json({ error: 'Phone number already registered as delivery partner' });
-            }
-        } else {
-            // Create new user account
-            const newUser = await db.query(
-                `INSERT INTO users (phone, full_name, role, is_verified)
-                 VALUES ($1, $2, 'delivery_partner', false)
-                 RETURNING id`,
-                [phone, full_name]
-            );
-            userId = newUser.rows[0].id;
+        if (existingPartner.rows.length > 0) {
+            return res.status(400).json({ error: 'Email already registered as delivery partner' });
         }
+
+        // Hash password
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create new user account for delivery partner
+        const newUser = await db.query(
+            `INSERT INTO users (name, phone, email, password, role)
+             VALUES ($1, $2, $3, $4, 'DELIVERY_PARTNER')
+             RETURNING id`,
+            [full_name, phone, email, hashedPassword]
+        );
+        const userId = newUser.rows[0].id;
 
         // Create delivery partner profile
         const result = await db.query(
@@ -118,6 +121,63 @@ router.post('/register', async (req: express.Request, res: Response) => {
             error: 'Registration failed. Please try again.',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
+    }
+});
+
+/**
+ * POST /api/delivery-partner/login
+ * Login with email and password
+ */
+router.post('/login', async (req: express.Request, res: Response) => {
+    const { email, password } = req.body;
+
+    try {
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password required' });
+        }
+
+        // Find delivery partner by email
+        const partnerResult = await db.query(
+            'SELECT dp.*, u.password as user_password, u.id as user_id FROM delivery_partners dp JOIN users u ON dp.email = u.email WHERE dp.email = $1',
+            [email]
+        );
+
+        if (partnerResult.rows.length === 0) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const partner = partnerResult.rows[0];
+
+        // Verify password
+        const bcrypt = require('bcryptjs');
+        const isValid = await bcrypt.compare(password, partner.user_password);
+
+        if (!isValid) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        // Generate token
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign(
+            { userId: partner.user_id, role: 'delivery_partner' },
+            process.env.JWT_SECRET!,
+            { expiresIn: '30d' }
+        );
+
+        res.json({
+            token,
+            user: {
+                id: partner.user_id,
+                name: partner.full_name,
+                email: partner.email,
+                phone: partner.phone,
+                role: 'delivery_partner',
+            },
+            verification_status: partner.verification_status,
+        });
+    } catch (error: any) {
+        console.error('❌ Delivery partner login error:', error);
+        res.status(500).json({ error: 'Login failed' });
     }
 });
 

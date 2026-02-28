@@ -1,4 +1,4 @@
-// Delivery Partner Login Screen
+// Delivery Partner Login Screen - Email + Password
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -25,65 +25,39 @@ import { gradients } from '../../src/theme/gradients';
 import { borderRadius, spacing } from '../../src/theme/spacing';
 
 export default function DeliveryPartnerLogin() {
-    const [phone, setPhone] = useState('');
-    const [otp, setOtp] = useState('');
-    const [otpSent, setOtpSent] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handleSendOTP = async () => {
-        if (phone.length !== 10) {
-            Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number');
+    const handleLogin = async () => {
+        if (!email || !password) {
+            Alert.alert('Missing Fields', 'Please enter email and password');
             return;
         }
 
         setLoading(true);
         try {
-            await api.post('/api/auth/send-otp', { phone });
-            setOtpSent(true);
-            Alert.alert('OTP Sent', 'Please check your phone for the OTP');
-        } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Failed to send OTP');
-        } finally {
-            setLoading(false);
-        }
-    };
+            const response = await api.post('/api/delivery-partner/login', {
+                email,
+                password,
+            });
 
-    const handleVerifyOTP = async () => {
-        if (otp.length !== 6) {
-            Alert.alert('Invalid OTP', 'Please enter the 6-digit OTP');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const response = await api.post('/api/auth/verify-otp', { phone, otp });
-            const { token, user } = response.data;
-
-            // Check if user is delivery partner
-            if (user.role !== 'delivery_partner') {
-                Alert.alert('Access Denied', 'This phone number is not registered as a delivery partner');
-                return;
-            }
+            const { token, user, verification_status } = response.data;
 
             // Save auth data
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('user', JSON.stringify(user));
 
-            // Check verification status
-            const profileResponse = await api.get('/api/delivery-partner/profile', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const partner = profileResponse.data;
-
-            if (partner.verification_status === 'pending') {
+            // Route based on verification status
+            if (verification_status === 'pending') {
                 router.replace('/delivery-partner/pending-verification');
-            } else if (partner.verification_status === 'approved') {
+            } else if (verification_status === 'approved') {
                 router.replace('/delivery-partner/(tabs)');
             } else {
-                Alert.alert('Account Rejected', 'Your delivery partner application was rejected. Please contact support.');
+                Alert.alert('Account Rejected', 'Your application was rejected. Please contact support.');
             }
         } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Login failed');
+            Alert.alert('Login Failed', error.response?.data?.error || 'Invalid email or password');
         } finally {
             setLoading(false);
         }
@@ -116,65 +90,46 @@ export default function DeliveryPartnerLogin() {
                             Login to start accepting deliveries
                         </Text>
 
-                        {/* Phone Input */}
+                        {/* Email Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Phone Number</Text>
+                            <Text style={styles.label}>Email</Text>
                             <TextInput
                                 style={styles.input}
-                                value={phone}
-                                onChangeText={setPhone}
-                                placeholder="10-digit mobile number"
+                                value={email}
+                                onChangeText={setEmail}
+                                placeholder="your@email.com"
                                 placeholderTextColor={colors.textMuted}
-                                keyboardType="phone-pad"
-                                maxLength={10}
-                                editable={!otpSent}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoComplete="email"
                             />
                         </View>
 
-                        {/* OTP Input */}
-                        {otpSent && (
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Enter OTP</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={otp}
-                                    onChangeText={setOtp}
-                                    placeholder="6-digit OTP"
-                                    placeholderTextColor={colors.textMuted}
-                                    keyboardType="number-pad"
-                                    maxLength={6}
-                                    autoFocus
-                                />
-                            </View>
-                        )}
+                        {/* Password Input */}
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>Password</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={password}
+                                onChangeText={setPassword}
+                                placeholder="Enter password"
+                                placeholderTextColor={colors.textMuted}
+                                secureTextEntry
+                            />
+                        </View>
 
-                        {/* Action Button */}
+                        {/* Login Button */}
                         <TouchableOpacity
                             style={styles.button}
-                            onPress={otpSent ? handleVerifyOTP : handleSendOTP}
+                            onPress={handleLogin}
                             disabled={loading}
                         >
                             {loading ? (
                                 <ActivityIndicator color="#fff" />
                             ) : (
-                                <Text style={styles.buttonText}>
-                                    {otpSent ? 'Verify OTP & Login' : 'Send OTP'}
-                                </Text>
+                                <Text style={styles.buttonText}>Login</Text>
                             )}
                         </TouchableOpacity>
-
-                        {/* Resend OTP */}
-                        {otpSent && (
-                            <TouchableOpacity
-                                style={styles.resendButton}
-                                onPress={() => {
-                                    setOtpSent(false);
-                                    setOtp('');
-                                }}
-                            >
-                                <Text style={styles.resendText}>Change Phone Number</Text>
-                            </TouchableOpacity>
-                        )}
 
                         {/* Register Link */}
                         <View style={styles.footer}>
@@ -257,16 +212,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         color: '#fff',
-    },
-    resendButton: {
-        padding: spacing.md,
-        alignItems: 'center',
-        marginTop: spacing.sm,
-    },
-    resendText: {
-        fontSize: 14,
-        color: colors.primary,
-        fontWeight: '600',
     },
     footer: {
         flexDirection: 'row',

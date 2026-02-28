@@ -27,6 +27,7 @@ export default function DeliveryPartnerRegister() {
     const [fullName, setFullName] = useState('');
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
 
     // Step 2: Address
@@ -128,6 +129,7 @@ export default function DeliveryPartnerRegister() {
                 full_name: fullName,
                 phone,
                 email,
+                password,
                 date_of_birth: dateOfBirth,
                 address_line1: addressLine1,
                 address_line2: addressLine2,
@@ -209,7 +211,7 @@ export default function DeliveryPartnerRegister() {
                             placeholderTextColor="#999"
                         />
 
-                        <Text style={styles.label}>Email (Optional)</Text>
+                        <Text style={styles.label}>Email *</Text>
                         <TextInput
                             style={styles.input}
                             value={email}
@@ -217,6 +219,16 @@ export default function DeliveryPartnerRegister() {
                             placeholder="your@email.com"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            placeholderTextColor="#999"
+                        />
+
+                        <Text style={styles.label}>Password *</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholder="Min 6 characters"
+                            secureTextEntry
                             placeholderTextColor="#999"
                         />
 

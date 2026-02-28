@@ -6,7 +6,7 @@ import axios from "axios";
  * Make sure this matches your machine's LAN IP
  * Run `ifconfig | grep "inet "` to find your IP
  */
-export const BASE_URL = "http://172.24.121.202:4000";
+export const BASE_URL = "http://192.168.1.34:4000";
 
 export const api = axios.create({
   baseURL: BASE_URL,

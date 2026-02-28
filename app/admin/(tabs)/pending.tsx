@@ -2,8 +2,8 @@
 // Admin - Pending KYC Approvals List
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -30,6 +30,16 @@ interface PendingShop {
     city: string;
 }
 
+interface PendingDeliveryPartner {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    city: string;
+    vehicleType: string;
+    submittedAt: string;
+}
+
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { api } from '../../../src/lib/api';
 
@@ -51,8 +61,10 @@ export default function AdminPendingScreen() {
     const router = useRouter();
     const { logout } = useAuth();
     const [shops, setShops] = useState<PendingShop[]>([]);
+    const [deliveryPartners, setDeliveryPartners] = useState<PendingDeliveryPartner[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [activeTab, setActiveTab] = useState<'shops' | 'delivery'>('delivery');
 
     const handleLogout = async () => {
         try {
@@ -74,26 +86,52 @@ export default function AdminPendingScreen() {
                 city: shop.city || 'Unknown Location',
             }));
             setShops(mappedShops);
-            setLoading(false);
-            setRefreshing(false);
         } catch (error) {
             console.error('Fetch pending shops error:', error);
-            setLoading(false);
-            setRefreshing(false);
         }
     };
 
-    useEffect(() => {
-        fetchPendingShops();
-    }, []);
+    const fetchPendingDeliveryPartners = async () => {
+        try {
+            const response = await api.get('/admin/pending-delivery-partners');
+            const mappedPartners = response.data.map((partner: any) => ({
+                id: partner.id,
+                fullName: partner.fullName || 'Name',
+                email: partner.email || 'No email',
+                phone: partner.phone || 'No phone',
+                city: partner.city || 'Unknown',
+                vehicleType: partner.vehicleType || 'bike',
+                submittedAt: formatDate(partner.submittedAt),
+            }));
+            setDeliveryPartners(mappedPartners);
+        } catch (error) {
+            console.error('Fetch pending delivery partners error:', error);
+        }
+    };
+
+    const fetchAll = async () => {
+        await Promise.all([fetchPendingShops(), fetchPendingDeliveryPartners()]);
+        setLoading(false);
+        setRefreshing(false);
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchAll();
+        }, [])
+    );
 
     const handleRefresh = () => {
         setRefreshing(true);
-        fetchPendingShops();
+        fetchAll();
     };
 
     const handleShopPress = (shopId: string) => {
         router.push(`/admin/kyc-review/${shopId}`);
+    };
+
+    const handlePartnerPress = (partnerId: string) => {
+        router.push(`/admin/delivery-partner-review/${partnerId}` as any);
     };
 
     const renderShopCard = ({ item, index }: { item: PendingShop; index: number }) => (
@@ -148,9 +186,56 @@ export default function AdminPendingScreen() {
             <Ionicons name="checkmark-done-circle-outline" size={80} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>All Caught Up!</Text>
             <Text style={styles.emptyText}>
-                No pending KYC approvals at the moment
+                No pending {activeTab === 'shops' ? 'shop' : 'delivery partner'} approvals
             </Text>
         </View>
+    );
+
+    const renderPartnerCard = ({ item, index }: { item: PendingDeliveryPartner; index: number }) => (
+        <Animated.View
+            entering={FadeInDown.delay(index * 100).springify()}
+            style={styles.cardWrapper}
+        >
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => handlePartnerPress(item.id)}
+            >
+                <GlassCard style={styles.shopCard}>
+                    <View style={styles.shopHeader}>
+                        <View style={[styles.shopIcon, { backgroundColor: 'rgba(14, 165, 233, 0.2)' }]}>
+                            <Ionicons name="bicycle" size={24} color="#0ea5e9" />
+                        </View>
+                        <View style={styles.shopInfo}>
+                            <Text style={styles.businessName}>{item.fullName}</Text>
+                            <Text style={styles.ownerName}>{item.email}</Text>
+                        </View>
+                        <View style={[styles.badge, { backgroundColor: '#0ea5e9' }]}>
+                            <Text style={styles.badgeText}>NEW</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.shopDetails}>
+                        <View style={styles.detailRow}>
+                            <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+                            <Text style={styles.detailText}>{item.phone}</Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Ionicons name="bicycle-outline" size={16} color={colors.textMuted} />
+                            <Text style={styles.detailText}>{item.vehicleType}</Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Ionicons name="time-outline" size={16} color={colors.textMuted} />
+                            <Text style={styles.detailText}>Submitted {item.submittedAt}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.actionRow}>
+                        <Text style={styles.reviewText}>Tap to review KYC</Text>
+                        <Ionicons name="arrow-forward" size={20} color={colors.primary} />
+                    </View>
+                </GlassCard>
+            </TouchableOpacity>
+        </Animated.View>
     );
 
     if (loading) {
@@ -166,6 +251,8 @@ export default function AdminPendingScreen() {
         );
     }
 
+    const totalPending = shops.length + deliveryPartners.length;
+
     return (
         <SafeView gradient={gradients.background as any}>
             <ImmersiveBackground />
@@ -173,9 +260,9 @@ export default function AdminPendingScreen() {
                 title="Pending Approvals"
                 rightElement={
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        {shops.length > 0 && (
+                        {totalPending > 0 && (
                             <View style={styles.countBadge}>
-                                <Text style={styles.countText}>{shops.length}</Text>
+                                <Text style={styles.countText}>{totalPending}</Text>
                             </View>
                         )}
                         <TouchableOpacity onPress={handleLogout} activeOpacity={0.7}>
@@ -185,9 +272,31 @@ export default function AdminPendingScreen() {
                 }
             />
 
+            {/* Tabs */}
+            <View style={styles.tabs}>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'delivery' && styles.tabActive]}
+                    onPress={() => setActiveTab('delivery')}
+                >
+                    <Ionicons name="bicycle" size={20} color={activeTab === 'delivery' ? '#fff' : colors.textMuted} />
+                    <Text style={[styles.tabText, activeTab === 'delivery' && styles.tabTextActive]}>
+                        Delivery ({deliveryPartners.length})
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'shops' && styles.tabActive]}
+                    onPress={() => setActiveTab('shops')}
+                >
+                    <Ionicons name="storefront" size={20} color={activeTab === 'shops' ? '#fff' : colors.textMuted} />
+                    <Text style={[styles.tabText, activeTab === 'shops' && styles.tabTextActive]}>
+                        Shops ({shops.length})
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
             <FlatList
-                data={shops}
-                renderItem={renderShopCard}
+                data={activeTab === 'delivery' ? deliveryPartners : shops}
+                renderItem={activeTab === 'delivery' ? renderPartnerCard : renderShopCard}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContent}
                 ListEmptyComponent={renderEmptyState}
@@ -318,6 +427,37 @@ const styles = StyleSheet.create({
     countText: {
         fontSize: 14,
         fontWeight: '700',
+        color: '#fff',
+    },
+    tabs: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        marginBottom: 16,
+        gap: 12,
+    },
+    tab: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    tabActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.textMuted,
+    },
+    tabTextActive: {
         color: '#fff',
     },
 });

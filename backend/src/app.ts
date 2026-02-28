@@ -32,6 +32,7 @@ app.get("/health", async (_req, res) => {
 import { cacheMiddleware } from "./middleware/cache";
 
 app.use("/auth", authRouter); // Old JWT auth (for existing users)
+app.use("/api/auth", authRouter); // API auth with OTP support
 app.use("/cognito-auth", cognitoAuthRouter); // New Cognito auth
 app.use("/upload", uploadRouter);
 app.use("/admin", adminRouter); // Admin routes
