@@ -3,7 +3,7 @@
 
 import express from 'express';
 import { pool } from '../lib/db';
-import { emitNewOrder } from '../lib/socket';
+import { emitNewOrder, emitNewOrderToDeliveryPartners } from '../lib/socket';
 import { authenticate } from '../middleware/auth';
 import { createRazorpayOrder } from '../services/razorpay';
 
@@ -268,10 +268,31 @@ router.post('/', async (req, res) => {
             // Notify shop owner in real-time
             emitNewOrder(storeId, {
                 orderId: order.id,
+                orderNumber: order.id.slice(-8).toUpperCase(),
                 totalAmount,
-                customerName: address.name || 'Customer', // Fix: address structure might differ
-                itemsCount: itemsArray.length
+                customerName: address.name || 'Customer',
+                itemsCount: itemsArray.length,
+                deliveryAddress: deliveryAddressText,
             });
+
+            // Notify available delivery partners in the shop's city
+            const shopCityResult = await client.query(
+                'SELECT city FROM shops WHERE id = $1',
+                [storeId]
+            );
+            const shopCity = shopCityResult.rows[0]?.city;
+            if (shopCity) {
+                emitNewOrderToDeliveryPartners(shopCity, {
+                    orderId: order.id,
+                    orderNumber: order.id.slice(-8).toUpperCase(),
+                    shopName: storeId, // Will be enriched by frontend
+                    shopCity,
+                    deliveryAddress: deliveryAddressText,
+                    deliveryFee,
+                    totalAmount,
+                    itemsCount: itemsArray.length,
+                });
+            }
         }
 
         await client.query('COMMIT');

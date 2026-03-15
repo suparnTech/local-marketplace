@@ -88,9 +88,12 @@ export default function WelcomeScreen() {
                     router.replace('/shop-owner/(tabs)');
                 }
             } else {
-                // Customer - ALWAYS go to home
-                // Home screen will handle location selection if needed
-                router.replace('/(tabs)');
+                // Customer — if no town detected, let them pick one first
+                if (!town) {
+                    router.replace('/select-town');
+                } else {
+                    router.replace('/(tabs)');
+                }
             }
         } catch (error) {
             console.error('Location detection error:', error);

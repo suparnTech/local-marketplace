@@ -104,22 +104,28 @@ export async function clearSavedTown() {
 
 /**
  * Auto-detect and set town based on GPS (ALWAYS uses fresh GPS)
+ * Clears any stale cached town before detecting so old data never bleeds through.
  */
 export async function autoDetectTown(): Promise<Town | null> {
-    console.log('🎯 Starting auto-detect town...');
+    console.log('🎯 Starting auto-detect town (clearing stale cache first)...');
+
+    // Clear stale cache so we never show an old town from a previous session
+    await clearSavedTown();
 
     // ALWAYS try GPS first for accurate, real-time location
     const location = await getCurrentLocation();
     if (location) {
+        console.log(`📡 GPS got coords: ${location.latitude}, ${location.longitude} — querying /nearest...`);
         const nearestTown = await findNearestTown(location.latitude, location.longitude);
         if (nearestTown) {
             await saveSelectedTown(nearestTown);
             return nearestTown;
         }
+        console.warn('⚠️ GPS succeeded but no nearby town found in DB. User must select manually.');
+        return null; // Don't fall back to stale data — let UI prompt manual selection
     }
 
-    // Only fall back to saved town if GPS completely fails
-    console.log('⚠️ GPS failed, checking saved town...');
-    const savedTown = await getSavedTown();
-    return savedTown;
+    // GPS completely failed (denied or error)
+    console.warn('⚠️ GPS failed — user must select town manually.');
+    return null;
 }

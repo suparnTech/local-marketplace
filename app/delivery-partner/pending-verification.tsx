@@ -1,8 +1,10 @@
 // Pending Verification Screen for Delivery Partners
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     ScrollView,
     StyleSheet,
     Text,
@@ -13,11 +15,36 @@ import { GlassCard } from '../../src/components/ui/GlassCard';
 import { GlassHeader } from '../../src/components/ui/GlassHeader';
 import { ImmersiveBackground } from '../../src/components/ui/ImmersiveBackground';
 import { SafeView } from '../../src/components/ui/SafeView';
+import { api } from '../../src/lib/api';
 import { colors } from '../../src/theme/colors';
 import { gradients } from '../../src/theme/gradients';
 import { borderRadius, spacing } from '../../src/theme/spacing';
 
 export default function PendingVerification() {
+    const [checking, setChecking] = useState(false);
+
+    const checkStatus = async () => {
+        setChecking(true);
+        try {
+            const res = await api.get('/api/delivery-partner/profile');
+            const verificationStatus = res.data?.verification_status;
+
+            if (verificationStatus === 'approved') {
+                Alert.alert('🎉 Approved!', 'Your account has been approved! Welcome aboard.', [
+                    { text: 'Start Delivering →', onPress: () => router.replace('/delivery-partner/(tabs)') }
+                ]);
+            } else if (verificationStatus === 'rejected') {
+                Alert.alert('Application Rejected', 'Your application was rejected. Please contact support.');
+            } else {
+                Alert.alert('Still Pending', 'Your application is still under review. Please check back later.');
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Could not check status. Please try logging out and logging in again.');
+        } finally {
+            setChecking(false);
+        }
+    };
+
     return (
         <SafeView gradient={gradients.backgroundDark as any}>
             <ImmersiveBackground />
@@ -80,6 +107,22 @@ export default function PendingVerification() {
                         </View>
                     </View>
 
+                    {/* Check Status Button */}
+                    <TouchableOpacity
+                        style={styles.checkButton}
+                        onPress={checkStatus}
+                        disabled={checking}
+                    >
+                        {checking ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <>
+                                <Ionicons name="refresh-circle" size={20} color="#fff" />
+                                <Text style={styles.checkButtonText}>Check Approval Status</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
                     {/* Info Box */}
                     <View style={styles.infoBox}>
                         <Ionicons name="information-circle" size={24} color={colors.info} />
@@ -88,25 +131,16 @@ export default function PendingVerification() {
                             <Text style={styles.infoText}>
                                 • Our team will verify your documents{'\n'}
                                 • This usually takes 24-48 hours{'\n'}
-                                • You'll receive a notification once approved{'\n'}
+                                • Tap "Check Approval Status" once admin approves{'\n'}
                                 • After approval, you can start accepting deliveries
                             </Text>
                         </View>
                     </View>
 
-                    {/* Contact Support */}
-                    <TouchableOpacity style={styles.supportButton}>
-                        <Ionicons name="help-circle-outline" size={20} color={colors.primary} />
-                        <Text style={styles.supportText}>Need Help? Contact Support</Text>
-                    </TouchableOpacity>
-
                     {/* Logout Button */}
                     <TouchableOpacity
                         style={styles.logoutButton}
-                        onPress={() => {
-                            // Clear auth and go back to role selection
-                            router.replace('/auth/role-selection');
-                        }}
+                        onPress={() => router.replace('/auth/role-selection')}
                     >
                         <Text style={styles.logoutText}>Logout</Text>
                     </TouchableOpacity>
@@ -199,6 +233,21 @@ const styles = StyleSheet.create({
         marginLeft: 19,
         marginVertical: spacing.xs,
     },
+    checkButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        padding: spacing.lg,
+        backgroundColor: colors.primary,
+        borderRadius: borderRadius.lg,
+        marginTop: spacing.lg,
+    },
+    checkButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#fff',
+    },
     infoBox: {
         flexDirection: 'row',
         padding: spacing.lg,
@@ -222,23 +271,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: colors.textMuted,
         lineHeight: 20,
-    },
-    supportButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: spacing.lg,
-        backgroundColor: `${colors.primary}15`,
-        borderRadius: borderRadius.lg,
-        borderWidth: 1,
-        borderColor: `${colors.primary}30`,
-        marginTop: spacing.xl,
-    },
-    supportText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: colors.primary,
-        marginLeft: spacing.sm,
     },
     logoutButton: {
         padding: spacing.lg,

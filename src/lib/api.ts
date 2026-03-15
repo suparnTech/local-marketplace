@@ -1,24 +1,36 @@
 // src/lib/api.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import Constants from "expo-constants";
 
 /**
  * Backend API Configuration
- * Make sure this matches your machine's LAN IP
- * Run `ifconfig | grep "inet "` to find your IP
+ * Auto-detects your machine's IP from Metro bundler — no manual updates needed!
  */
-export const BASE_URL = "http://192.168.1.34:4000";
+const getBaseUrl = () => {
+  // In dev builds, hostUri gives us the Metro server host (your machine's LAN IP)
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  if (host) return `http://${host}:4000`;
+  return "http://localhost:4000"; // fallback for web
+};
+
+export const BASE_URL = getBaseUrl();
 
 export const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000, // Increased to 15 seconds
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add request interceptor for debugging
+// Add request interceptor — attach token + log
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
