@@ -126,14 +126,12 @@ export default function ShopDetailScreen() {
             entering={FadeInDown.delay(index * 60).springify()}
             style={styles.productCardWrapper}
         >
-            <KineticCard cardWidth={PRODUCT_CARD_WIDTH}>
-                <TouchableOpacity
-                    activeOpacity={1}
-                    onPress={() => handleQuickAdd(item)}
-                    onLongPress={() => handleLongPress(item)}
-                    delayLongPress={500}
-                >
-                    <GlassCard style={styles.productContent} intensity={15}>
+            <KineticCard 
+                cardWidth={PRODUCT_CARD_WIDTH}
+                onPress={() => handleQuickAdd(item)}
+                onLongPress={() => handleLongPress(item)}
+            >
+                <GlassCard style={styles.productContent} intensity={15}>
                         {/* Product Image */}
                         <View style={styles.productImageContainer}>
                             <Image
@@ -175,8 +173,7 @@ export default function ShopDetailScreen() {
                                 </View>
                             </View>
                         </View>
-                    </GlassCard>
-                </TouchableOpacity>
+                </GlassCard>
             </KineticCard>
         </Animated.View>
     );

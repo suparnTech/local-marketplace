@@ -277,7 +277,7 @@ router.post('/', async (req, res) => {
 
             // Notify available delivery partners in the shop's city
             const shopCityResult = await client.query(
-                'SELECT city FROM shops WHERE id = $1',
+                'SELECT t.name as city FROM shops s LEFT JOIN towns t ON s.town_id = t.id WHERE s.id = $1',
                 [storeId]
             );
             const shopCity = shopCityResult.rows[0]?.city;

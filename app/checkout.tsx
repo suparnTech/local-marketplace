@@ -25,6 +25,7 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { useDispatch, useSelector } from 'react-redux';
+import { useQueryClient } from '@tanstack/react-query';
 import { GlassCard } from '../src/components/ui/GlassCard';
 import { GlassHeader } from '../src/components/ui/GlassHeader';
 import { SafeView } from '../src/components/ui/SafeView';
@@ -40,6 +41,7 @@ const CARD_WIDTH = width * 0.75;
 
 export default function CheckoutScreen() {
     const dispatch = useDispatch();
+    const queryClient = useQueryClient();
     const cartItems = useSelector((state: any) => state.cart.items);
     const total = useSelector((state: any) => state.cart.total);
 
@@ -199,6 +201,7 @@ export default function CheckoutScreen() {
 
             await Promise.all(orderPromises);
             dispatch(clearCart());
+            await queryClient.invalidateQueries({ queryKey: ['orders'] });
             router.replace('/(tabs)/orders');
         } catch (error) {
             Alert.alert('Error', 'Failed to place order. Please try again.');

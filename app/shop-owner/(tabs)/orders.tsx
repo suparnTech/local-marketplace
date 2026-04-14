@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { GlassCard } from '../../../src/components/ui/GlassCard';
@@ -10,6 +10,7 @@ import { KineticCard } from '../../../src/components/ui/KineticCard';
 import { SafeView } from '../../../src/components/ui/SafeView';
 import { useShopOwnerOrders } from '../../../src/hooks/useShopOwner';
 import { api } from '../../../src/lib/api';
+import { getSocket } from '../../../src/lib/socket';
 import { colors } from '../../../src/theme/colors';
 import { spacing } from '../../../src/theme/spacing';
 
@@ -22,6 +23,17 @@ export default function ShopOrders() {
 
     // Use React Query hook instead of manual fetching
     const { data: orders = [], isLoading: loading, refetch } = useShopOwnerOrders();
+
+    // Auto-refetch when new order arrives via socket
+    useEffect(() => {
+        const socket = getSocket();
+        const handleNewOrder = () => {
+            console.log('🔄 Auto-refreshing orders list after new order');
+            refetch();
+        };
+        socket.on('new_order', handleNewOrder);
+        return () => { socket.off('new_order', handleNewOrder); };
+    }, [refetch]);
 
     const onRefresh = async () => {
         await refetch();
@@ -103,18 +115,18 @@ export default function ShopOrders() {
                         ) : (
                             filteredOrders.map((order: any, index: number) => (
                                 <Animated.View key={order.id} entering={FadeInDown.delay(index * 100).springify()}>
-                                    <KineticCard style={{ width: '100%' }} cardWidth={CARD_WIDTH}>
-                                        <TouchableOpacity
-                                            activeOpacity={0.9}
-                                            onPress={() => router.push({ pathname: '/shop-owner/orders/[id]', params: { id: order.id } })}
-                                        >
-                                            <GlassCard style={styles.orderCard} intensity={20}>
-                                                <View style={styles.orderHeader}>
-                                                    <Text style={styles.orderId}>Order #{order.id.slice(0, 8)}</Text>
-                                                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-                                                        <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
-                                                    </View>
+                                    <KineticCard 
+                                        style={{ width: '100%' }} 
+                                        cardWidth={CARD_WIDTH}
+                                        onPress={() => router.push({ pathname: '/shop-owner/orders/[id]', params: { id: order.id } })}
+                                    >
+                                        <GlassCard style={styles.orderCard} intensity={20}>
+                                            <View style={styles.orderHeader}>
+                                                <Text style={styles.orderId}>Order #{order.id.slice(0, 8)}</Text>
+                                                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
+                                                    <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
                                                 </View>
+                                            </View>
 
                                                 <Text style={styles.customerName}>{order.customer_name || 'Guest User'}</Text>
                                                 <Text style={styles.orderTime}>{new Date(order.created_at).toLocaleString()}</Text>
@@ -160,7 +172,6 @@ export default function ShopOrders() {
                                                     )}
                                                 </View>
                                             </GlassCard>
-                                        </TouchableOpacity>
                                     </KineticCard>
                                 </Animated.View>
                             ))

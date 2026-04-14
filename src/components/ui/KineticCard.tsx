@@ -100,7 +100,10 @@ export const KineticCard = ({
             >
                 {children}
                 {shimmer && (
-                    <Animated.View style={[styles.shimmerContainer, shimmerStyle, { borderRadius }]}>
+                    <Animated.View 
+                        style={[styles.shimmerContainer, shimmerStyle, { borderRadius }]}
+                        pointerEvents="none"
+                    >
                         <LinearGradient
                             colors={['transparent', 'rgba(255,255,255,0.08)', 'transparent']}
                             start={{ x: 0, y: 0 }}

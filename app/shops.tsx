@@ -92,12 +92,12 @@ export default function ShopsScreen() {
 
     const renderShop = ({ item, index }: { item: Shop; index: number }) => (
         <Animated.View key={item.id} entering={FadeInDown.delay(index * 100).springify()}>
-            <KineticCard cardWidth={CARD_WIDTH} style={styles.kineticWrapper}>
-                <TouchableOpacity
-                    onPress={() => router.push(`/shop/${item.id}`)}
-                    activeOpacity={0.9}
-                >
-                    <GlassCard style={styles.shopCard} intensity={15}>
+            <KineticCard 
+                cardWidth={CARD_WIDTH} 
+                style={styles.kineticWrapper}
+                onPress={() => router.push(`/shop/${item.id}`)}
+            >
+                <GlassCard style={styles.shopCard} intensity={15}>
                         {/* Cover Image Section */}
                         <View style={styles.coverImageContainer}>
                             {item.logo_url ? (
@@ -178,8 +178,7 @@ export default function ShopsScreen() {
                                 </View>
                             </View>
                         </View>
-                    </GlassCard>
-                </TouchableOpacity>
+                </GlassCard>
             </KineticCard>
         </Animated.View>
     );

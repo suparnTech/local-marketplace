@@ -56,7 +56,6 @@ export default function RootLayout() {
             <Stack.Screen name="store-owner/dashboard" />
 
             {/* Admin */}
-            <Stack.Screen name="admin/dashboard" />
           </Stack>
         </AuthProvider>
       </QueryClientProvider>
